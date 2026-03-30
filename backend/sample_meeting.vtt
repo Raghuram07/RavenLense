@@ -1,0 +1,53 @@
+WEBVTT
+
+1
+00:00:05.000 --> 00:00:12.000
+<v Raghuram G.>Good morning everyone. Let's start the Sprint 14 review. I'll go first — the SupportingDocuments module is complete and PR is up on ADO.
+
+2
+00:00:13.000 --> 00:00:22.000
+<v Sarah PM>Great work Raghuram. Can you also document the Power Automate flow decision in the ADO wiki by end of day today?
+
+3
+00:00:23.000 --> 00:00:26.000
+<v Raghuram G.>Sure, I'll get that done today.
+
+4
+00:00:28.000 --> 00:00:40.000
+<v Sneha K.>I need to flag a blocker. I'm waiting on the entity schema sign-off from the client for the Hearing Management plugin. It's been 3 days and I can't proceed without it.
+
+5
+00:00:41.000 --> 00:00:52.000
+<v Sarah PM>That's a serious blocker. I'll escalate it to the client director today. Sneha, can you document what exactly you need from them so I can include it in the escalation?
+
+6
+00:00:53.000 --> 00:00:57.000
+<v Sneha K.>Yes I'll send you that by noon.
+
+7
+00:01:00.000 --> 00:01:15.000
+<v Arjun M.>I have an update on the frontend work. The quarterly tax reporting UI is 70% done. I need Raghuram to review my JavaScript module before I can finish the Select Report navigation.
+
+8
+00:01:16.000 --> 00:01:25.000
+<v Raghuram G.>I can review that tomorrow morning, Arjun. Share the PR link in the channel.
+
+9
+00:01:26.000 --> 00:01:30.000
+<v Arjun M.>Will do.
+
+10
+00:01:32.000 --> 00:01:45.000
+<v Priya R.>Test coverage for the portal deployment workflow is at 80%. I should hit 100% by the end of sprint. No blockers on my side.
+
+11
+00:01:46.000 --> 00:02:00.000
+<v Sarah PM>Good. One important decision to log — we've officially decided to use scheduled Power Automate flows for consent field expiration instead of TTL. That approach is final and should be documented.
+
+12
+00:02:01.000 --> 00:02:10.000
+<v Raghuram G.>Agreed. That was the right call. I'll add it to the architectural decisions log in the wiki.
+
+13
+00:02:11.000 --> 00:02:25.000
+<v Sarah PM>Alright. Quick summary — Raghuram is on PR and documentation, Sneha needs the client sign-off unblocked, Arjun is finishing the tax UI pending Raghuram's review, Priya is on track. Same time next week. Thanks everyone.

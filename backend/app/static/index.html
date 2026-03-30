@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RavenLens</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0f1117;
+    --surface:  #1a1d27;
+    --border:   #2a2d3e;
+    --accent:   #6c63ff;
+    --accent2:  #a78bfa;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --success:  #22c55e;
+    --warning:  #f59e0b;
+    --error:    #ef4444;
+    --processing: #3b82f6;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 20px 16px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .logo span { color: var(--accent2); }
+
+  .tagline {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .sidebar-section {
+    padding: 12px 16px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+  }
+
+  #project-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 8px;
+  }
+
+  .project-item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.15s;
+    user-select: none;
+  }
+
+  .project-item:hover { background: rgba(108,99,255,0.1); }
+  .project-item.active { background: rgba(108,99,255,0.2); }
+
+  .project-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .project-info { flex: 1; min-width: 0; }
+  .project-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .project-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  .btn-new-project {
+    margin: 8px;
+    padding: 10px;
+    background: rgba(108,99,255,0.15);
+    border: 1px dashed var(--accent);
+    border-radius: 8px;
+    color: var(--accent2);
+    cursor: pointer;
+    font-size: 13px;
+    text-align: center;
+    transition: background 0.15s;
+  }
+  .btn-new-project:hover { background: rgba(108,99,255,0.25); }
+
+  .sidebar-links {
+    padding: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .sidebar-link {
+    display: block;
+    padding: 8px 12px;
+    border-radius: 6px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    transition: color 0.15s;
+  }
+  .sidebar-link:hover { color: var(--text); }
+
+  /* ── MAIN ── */
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #topbar {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+  }
+
+  #topbar h1 { font-size: 16px; font-weight: 600; flex: 1; }
+  #topbar .client-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: rgba(167,139,250,0.15);
+    color: var(--accent2);
+    border: 1px solid rgba(167,139,250,0.3);
+  }
+
+  #content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  /* ── EMPTY STATE ── */
+  #empty-state {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+  }
+
+  #empty-state .big-icon { font-size: 48px; }
+  #empty-state h2 { font-size: 18px; color: var(--text); }
+  #empty-state p { font-size: 13px; }
+
+  /* ── UPLOAD CARD ── */
+  .upload-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .upload-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--accent2); }
+
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+
+  .form-group { flex: 1; min-width: 160px; }
+  .form-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  input[type="text"], input[type="date"], select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  .file-drop {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .file-drop:hover, .file-drop.drag-over { border-color: var(--accent); background: rgba(108,99,255,0.05); }
+  .file-drop input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .file-drop .drop-icon { font-size: 24px; margin-bottom: 6px; }
+  .file-drop .drop-text { font-size: 13px; color: var(--muted); }
+  .file-drop .file-selected { color: var(--accent2); font-weight: 500; }
+
+  .btn {
+    padding: 9px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover:not(:disabled) { opacity: 0.85; }
+  .btn-danger { background: rgba(239,68,68,0.15); color: var(--error); border: 1px solid rgba(239,68,68,0.3); }
+  .btn-danger:hover { background: rgba(239,68,68,0.25); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text); }
+
+  /* ── MEETINGS TABLE ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .section-header h3 { font-size: 14px; font-weight: 600; }
+
+  .meetings-grid {
+    display: grid;
+    gap: 12px;
+  }
+
+  .meeting-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .meeting-card:hover { border-color: var(--accent); background: rgba(108,99,255,0.05); }
+
+  .meeting-platform {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+  }
+
+  .meeting-info { flex: 1; min-width: 0; }
+  .meeting-title { font-weight: 500; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meeting-sub { font-size: 12px; color: var(--muted); }
+
+  .meeting-stats { display: flex; gap: 16px; }
+  .stat { text-align: center; }
+  .stat-num { font-weight: 600; font-size: 16px; }
+  .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .status-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .status-done       { background: rgba(34,197,94,0.15);  color: var(--success); }
+  .status-processing { background: rgba(59,130,246,0.15); color: var(--processing); }
+  .status-failed     { background: rgba(239,68,68,0.15);  color: var(--error); }
+  .status-pending    { background: rgba(100,116,139,0.15); color: var(--muted); }
+
+  .meeting-actions { display: flex; gap: 8px; }
+  .icon-btn {
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--text); }
+  .icon-btn.delete:hover { color: var(--error); border-color: var(--error); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .modal-overlay.hidden { display: none; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 700px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .modal-header h2 { flex: 1; font-size: 16px; font-weight: 600; }
+  .modal-close {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 18px; padding: 2px 6px; border-radius: 4px;
+  }
+  .modal-close:hover { color: var(--text); }
+
+  .modal-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+  .mom-section { margin-bottom: 20px; }
+  .mom-section h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--accent2);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .mom-summary { font-size: 13px; line-height: 1.6; color: var(--text); }
+
+  .pill-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    background: rgba(108,99,255,0.12);
+    border: 1px solid rgba(108,99,255,0.25);
+    color: var(--accent2);
+  }
+
+  .action-list { display: grid; gap: 8px; }
+  .action-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .action-owner {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent2);
+    white-space: nowrap;
+    min-width: 80px;
+  }
+  .action-task { font-size: 13px; flex: 1; }
+  .action-due { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .decision-list { display: grid; gap: 6px; }
+  .decision-item {
+    padding: 8px 12px;
+    background: var(--bg);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+  }
+
+  .full-mom-text {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    color: var(--text);
+  }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ── NEW PROJECT MODAL ── */
+  .new-project-form { display: grid; gap: 14px; }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 200;
+    max-width: 320px;
+  }
+  #toast.hidden { opacity: 0; transform: translateY(8px); pointer-events: none; }
+  #toast.success { border-left: 3px solid var(--success); }
+  #toast.error   { border-left: 3px solid var(--error); }
+  #toast.info    { border-left: 3px solid var(--accent); }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .no-meetings {
+    text-align: center;
+    padding: 48px 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .no-meetings .icon { font-size: 32px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">Raven<span>Lens</span></div>
+    <div class="tagline">Every meeting. Summarised. Delivered.</div>
+  </div>
+  <div class="sidebar-section">Projects</div>
+  <div id="project-list"></div>
+  <div class="btn-new-project" onclick="openNewProjectModal()">+ New Project</div>
+  <div class="sidebar-links">
+    <a class="sidebar-link" href="/docs" target="_blank">Swagger API Docs</a>
+    <a class="sidebar-link" href="/redoc" target="_blank">ReDoc</a>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="topbar">
+    <h1 id="topbar-title">Select a project</h1>
+    <span id="topbar-client" class="client-badge" style="display:none"></span>
+    <button id="btn-delete-project" class="btn btn-danger" style="display:none" onclick="deleteProject()">Delete Project</button>
+  </div>
+  <div id="content">
+    <div id="empty-state">
+      <div class="big-icon">🦅</div>
+      <h2>Welcome to RavenLens</h2>
+      <p>Select a project from the sidebar or create a new one to get started.</p>
+    </div>
+    <div id="project-view" style="display:none">
+      <!-- Upload card -->
+      <div class="upload-card">
+        <h3>Upload Meeting Transcript</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Meeting Title *</label>
+            <input type="text" id="u-title" placeholder="e.g. Sprint 14 Review" />
+          </div>
+          <div class="form-group" style="max-width:160px">
+            <label>Platform</label>
+            <select id="u-platform">
+              <option value="">— select —</option>
+              <option value="teams">Teams</option>
+              <option value="zoom">Zoom</option>
+              <option value="meet">Google Meet</option>
+              <option value="webex">Webex</option>
+            </select>
+          </div>
+          <div class="form-group" style="max-width:160px">
+            <label>Meeting Date</label>
+            <input type="date" id="u-date" />
+          </div>
+        </div>
+        <div class="file-drop" id="file-drop">
+          <input type="file" id="u-file" accept=".vtt,.docx" onchange="onFileSelect()" />
+          <div class="drop-icon">📄</div>
+          <div class="drop-text" id="drop-label">Drop a <strong>.vtt</strong> or <strong>.docx</strong> file here or click to browse</div>
+        </div>
+        <button class="btn btn-primary" id="btn-upload" onclick="uploadVtt()">Upload &amp; Generate MOM</button>
+      </div>
+
+      <!-- Meetings -->
+      <div class="section-header">
+        <h3 id="meetings-heading">Meetings</h3>
+      </div>
+      <div id="meetings-grid" class="meetings-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MOM MODAL -->
+<div class="modal-overlay hidden" id="mom-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <h2 id="mom-modal-title"></h2>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px" id="mom-modal-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeMomModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('overview')">Overview</button>
+        <button class="tab" onclick="switchTab('actions')">Action Items</button>
+        <button class="tab" onclick="switchTab('full')">Full MOM</button>
+      </div>
+      <div id="tab-overview"></div>
+      <div id="tab-actions"  style="display:none"></div>
+      <div id="tab-full"     style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- NEW PROJECT MODAL -->
+<div class="modal-overlay hidden" id="new-project-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <h2>New Project</h2>
+      <button class="modal-close" onclick="closeNewProjectModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="new-project-form">
+        <div class="form-group">
+          <label>Project Name *</label>
+          <input type="text" id="np-name" placeholder="e.g. IDOL-CMS" />
+        </div>
+        <div class="form-group">
+          <label>Client</label>
+          <input type="text" id="np-client" placeholder="e.g. Dept of Labor" />
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="np-desc" placeholder="Optional" />
+        </div>
+        <button class="btn btn-primary" onclick="createProject()">Create Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="hidden"></div>
+
+<script>
+const API = '';
+let currentProject = null;
+let currentTab = 'overview';
+
+// ── TOAST ──
+function toast(msg, type = 'info', duration = 3500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = type;
+  setTimeout(() => el.classList.add('hidden'), duration);
+}
+
+// ── PLATFORM ICONS ──
+function platformIcon(p) {
+  const icons = { teams: '💼', zoom: '🎥', meet: '📹', webex: '🔵' };
+  return icons[p?.toLowerCase()] || '📅';
+}
+
+// ── LOAD PROJECTS ──
+async function loadProjects() {
+  const res = await fetch(`${API}/projects/`);
+  const projects = await res.json();
+  const list = document.getElementById('project-list');
+  list.innerHTML = '';
+  projects.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'project-item' + (currentProject?.id === p.id ? ' active' : '');
+    el.onclick = () => selectProject(p);
+    el.innerHTML = `
+      <div class="project-icon">${p.name[0].toUpperCase()}</div>
+      <div class="project-info">
+        <div class="project-name">${p.name}</div>
+        <div class="project-meta">${p.meeting_count} meeting${p.meeting_count !== 1 ? 's' : ''}${p.client ? ' · ' + p.client : ''}</div>
+      </div>`;
+    list.appendChild(el);
+  });
+}
+
+// ── SELECT PROJECT ──
+async function selectProject(project) {
+  currentProject = project;
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('project-view').style.display = 'block';
+  document.getElementById('topbar-title').textContent = project.name;
+
+  const clientBadge = document.getElementById('topbar-client');
+  if (project.client) {
+    clientBadge.textContent = project.client;
+    clientBadge.style.display = '';
+  } else {
+    clientBadge.style.display = 'none';
+  }
+  document.getElementById('btn-delete-project').style.display = '';
+  await loadProjects();
+  await loadMeetings();
+}
+
+// ── LOAD MEETINGS ──
+async function loadMeetings() {
+  if (!currentProject) return;
+  const res = await fetch(`${API}/meetings/project/${currentProject.id}`);
+  const meetings = await res.json();
+  const grid = document.getElementById('meetings-grid');
+  const heading = document.getElementById('meetings-heading');
+  heading.textContent = `Meetings (${meetings.length})`;
+
+  if (!meetings.length) {
+    grid.innerHTML = `<div class="no-meetings"><div class="icon">📭</div>No meetings yet — upload a .vtt transcript above.</div>`;
+    return;
+  }
+
+  grid.innerHTML = '';
+  meetings.forEach(m => {
+    const card = document.createElement('div');
+    card.className = 'meeting-card';
+    card.onclick = () => openMomModal(m.id);
+    const dateStr = m.meeting_date ? new Date(m.meeting_date).toLocaleDateString() : 'No date';
+    card.innerHTML = `
+      <div class="meeting-platform">${platformIcon(m.platform)}</div>
+      <div class="meeting-info">
+        <div class="meeting-title">${m.title}</div>
+        <div class="meeting-sub">${dateStr} · ${m.platform || 'unknown platform'}</div>
+      </div>
+      <div class="meeting-stats">
+        <div class="stat"><div class="stat-num">${m.attendee_count}</div><div class="stat-label">People</div></div>
+        <div class="stat"><div class="stat-num">${m.action_count}</div><div class="stat-label">Actions</div></div>
+      </div>
+      <span class="status-badge status-${m.status}">${m.status}</span>
+      <div class="meeting-actions" onclick="event.stopPropagation()">
+        <button class="icon-btn delete" onclick="deleteMeeting('${m.id}')" title="Delete">🗑</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ── UPLOAD VTT ──
+async function uploadVtt() {
+  const title = document.getElementById('u-title').value.trim();
+  const file  = document.getElementById('u-file').files[0];
+  if (!title) { toast('Meeting title is required', 'error'); return; }
+  if (!file)  { toast('Please select a .vtt file', 'error'); return; }
+
+  const btn = document.getElementById('btn-upload');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Generating MOM...';
+
+  const fd = new FormData();
+  fd.append('project_id',   currentProject.id);
+  fd.append('title',        title);
+  fd.append('platform',     document.getElementById('u-platform').value);
+  fd.append('meeting_date', document.getElementById('u-date').value);
+  fd.append('vtt_file',     file);
+
+  try {
+    const res = await fetch(`${API}/meetings/upload`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    toast('MOM generated successfully!', 'success');
+    document.getElementById('u-title').value = '';
+    document.getElementById('u-file').value = '';
+    document.getElementById('u-platform').value = '';
+    document.getElementById('u-date').value = '';
+    document.getElementById('drop-label').innerHTML = 'Drop a <strong>.vtt</strong> file here or click to browse';
+    await loadMeetings();
+  } catch (e) {
+    toast(e.message, 'error', 6000);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Upload & Generate MOM';
+  }
+}
+
+function onFileSelect() {
+  const file = document.getElementById('u-file').files[0];
+  if (file) {
+    document.getElementById('drop-label').innerHTML = `<span class="file-selected">📎 ${file.name}</span>`;
+  }
+}
+
+// drag-over highlight
+const drop = document.getElementById('file-drop');
+drop.addEventListener('dragover',  e => { e.preventDefault(); drop.classList.add('drag-over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+drop.addEventListener('drop',      () => { drop.classList.remove('drag-over'); setTimeout(onFileSelect, 50); });
+
+// ── MOM MODAL ──
+async function openMomModal(meetingId) {
+  const res = await fetch(`${API}/meetings/${meetingId}`);
+  const m = await res.json();
+  if (!res.ok) { toast('Could not load meeting', 'error'); return; }
+
+  document.getElementById('mom-modal-title').textContent = m.title;
+  const dateStr = m.meeting_date ? new Date(m.meeting_date).toLocaleDateString() : '';
+  document.getElementById('mom-modal-sub').textContent =
+    [m.platform, dateStr, `Status: ${m.status}`].filter(Boolean).join(' · ');
+
+  // Overview tab
+  document.getElementById('tab-overview').innerHTML = `
+    ${m.summary ? `<div class="mom-section"><h4>Summary</h4><p class="mom-summary">${m.summary}</p></div>` : ''}
+    ${(m.attendees?.length) ? `<div class="mom-section"><h4>Attendees</h4><div class="pill-list">${m.attendees.map(a => `<span class="pill">${a}</span>`).join('')}</div></div>` : ''}
+    ${(m.decisions?.length) ? `<div class="mom-section"><h4>Decisions</h4><div class="decision-list">${m.decisions.map(d => `<div class="decision-item">${d}</div>`).join('')}</div></div>` : ''}
+    ${(m.blockers?.length)  ? `<div class="mom-section"><h4>Blockers</h4><div class="pill-list">${m.blockers.map(b => `<span class="pill" style="background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:var(--error)">${b}</span>`).join('')}</div></div>` : ''}
+    ${m.status !== 'done' ? `<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">MOM not ready yet — status: <strong>${m.status}</strong></div>` : ''}
+  `;
+
+  // Actions tab
+  document.getElementById('tab-actions').innerHTML = (m.action_items?.length)
+    ? `<div class="action-list">${m.action_items.map(a => `
+        <div class="action-item">
+          <div><div class="action-owner">${a.owner}</div></div>
+          <div class="action-task">${a.task}${a.due ? `<div class="action-due">Due: ${a.due}</div>` : ''}</div>
+        </div>`).join('')}</div>`
+    : `<div style="color:var(--muted);text-align:center;padding:24px">No action items recorded.</div>`;
+
+  // Full MOM tab
+  document.getElementById('tab-full').innerHTML = m.full_mom
+    ? `<pre class="full-mom-text">${m.full_mom}</pre>`
+    : `<div style="color:var(--muted);text-align:center;padding:24px">Full MOM not available.</div>`;
+
+  switchTab('overview');
+  document.getElementById('mom-modal').classList.remove('hidden');
+}
+
+function closeMomModal() { document.getElementById('mom-modal').classList.add('hidden'); }
+
+function switchTab(name) {
+  currentTab = name;
+  ['overview','actions','full'].forEach(t => {
+    document.getElementById(`tab-${t}`).style.display = t === name ? '' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((btn, i) => {
+    btn.classList.toggle('active', ['overview','actions','full'][i] === name);
+  });
+}
+
+// ── DELETE MEETING ──
+async function deleteMeeting(id) {
+  if (!confirm('Delete this meeting?')) return;
+  const res = await fetch(`${API}/meetings/${id}`, { method: 'DELETE' });
+  if (res.ok || res.status === 204) {
+    toast('Meeting deleted', 'info');
+    loadMeetings();
+  } else {
+    toast('Delete failed', 'error');
+  }
+}
+
+// ── DELETE PROJECT ──
+async function deleteProject() {
+  if (!currentProject) return;
+  if (!confirm(`Delete project "${currentProject.name}" and all its meetings?`)) return;
+  const res = await fetch(`${API}/projects/${currentProject.id}`, { method: 'DELETE' });
+  if (res.ok || res.status === 204) {
+    toast('Project deleted', 'info');
+    currentProject = null;
+    document.getElementById('empty-state').style.display = '';
+    document.getElementById('project-view').style.display = 'none';
+    document.getElementById('topbar-title').textContent = 'Select a project';
+    document.getElementById('topbar-client').style.display = 'none';
+    document.getElementById('btn-delete-project').style.display = 'none';
+    loadProjects();
+  } else {
+    toast('Delete failed', 'error');
+  }
+}
+
+// ── NEW PROJECT MODAL ──
+function openNewProjectModal()  { document.getElementById('new-project-modal').classList.remove('hidden'); document.getElementById('np-name').focus(); }
+function closeNewProjectModal() { document.getElementById('new-project-modal').classList.add('hidden'); }
+
+async function createProject() {
+  const name = document.getElementById('np-name').value.trim();
+  if (!name) { toast('Project name is required', 'error'); return; }
+  const body = {
+    name,
+    client:      document.getElementById('np-client').value.trim() || null,
+    description: document.getElementById('np-desc').value.trim()   || null,
+  };
+  const res = await fetch(`${API}/projects/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) { toast(data.detail || 'Failed to create project', 'error'); return; }
+  toast(`Project "${data.name}" created`, 'success');
+  closeNewProjectModal();
+  document.getElementById('np-name').value = '';
+  document.getElementById('np-client').value = '';
+  document.getElementById('np-desc').value = '';
+  await loadProjects();
+  selectProject(data);
+}
+
+// close modals on overlay click
+document.getElementById('mom-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeMomModal(); });
+document.getElementById('new-project-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeNewProjectModal(); });
+
+// ── INIT ──
+loadProjects();
+</script>
+</body>
+</html>
