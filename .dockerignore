@@ -1,0 +1,48 @@
+# Environment files
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Node.js / Frontend
+node_modules/
+frontend/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tests
+tests/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Misc
+*.log
+*.tmp

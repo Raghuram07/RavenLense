@@ -1,0 +1,63 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ECRAuth",
+            "Effect": "Allow",
+            "Action": [
+                "ecr:GetAuthorizationToken"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "ECRPush",
+            "Effect": "Allow",
+            "Action": [
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:InitiateLayerUpload",
+                "ecr:UploadLayerPart",
+                "ecr:CompleteLayerUpload",
+                "ecr:PutImage",
+                "ecr:BatchGetImage",
+                "ecr:DescribeRepositories"
+            ],
+            "Resource": "arn:aws:ecr:us-west-2:*:repository/ravenlens-backend"
+        },
+        {
+            "Sid": "S3BucketAccess",
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Resource": "arn:aws:s3:::ravenlens-frontend-prod"
+        },
+        {
+            "Sid": "S3ObjectAccess",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": "arn:aws:s3:::ravenlens-frontend-prod/*"
+        },
+        {
+            "Sid": "CloudFrontInvalidation",
+            "Effect": "Allow",
+            "Action": [
+                "cloudfront:CreateInvalidation"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AppRunnerDeploy",
+            "Effect": "Allow",
+            "Action": [
+                "apprunner:StartDeployment",
+                "apprunner:DescribeService",
+                "apprunner:ListServices"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
