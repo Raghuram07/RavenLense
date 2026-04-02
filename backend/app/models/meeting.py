@@ -11,8 +11,8 @@ class Meeting(Base):
     project_id     = Column(String,  ForeignKey("projects.id"), nullable=False)
     title          = Column(String(300), nullable=False)
     platform       = Column(String(50),  nullable=True)   # teams / zoom / meet / webex
-    meeting_date   = Column(DateTime, nullable=True)
-    created_at     = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    meeting_date   = Column(DateTime(timezone=True), nullable=True)
+    created_at     = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Raw storage
     raw_vtt        = Column(Text, nullable=True)   # original .vtt file content
@@ -31,7 +31,7 @@ class Meeting(Base):
     recall_bot_id  = Column(String(255), nullable=True, index=True)
     meeting_url    = Column(Text,        nullable=True)
     bot_status     = Column(String(50),  nullable=True)  # joining/recording/done/failed
-    bot_joined_at  = Column(DateTime,    nullable=True)
-    bot_left_at    = Column(DateTime,    nullable=True)
+    bot_joined_at  = Column(DateTime(timezone=True), nullable=True)
+    bot_left_at    = Column(DateTime(timezone=True), nullable=True)
 
     project = relationship("Project", back_populates="meetings")
