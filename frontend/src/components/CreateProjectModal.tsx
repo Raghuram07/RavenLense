@@ -27,7 +27,7 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
       })
       onCreated(p)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create project')
+      setError(err instanceof Error ? err.message : 'Failed to to create project')
     } finally {
       setLoading(false)
     }
