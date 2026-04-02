@@ -78,7 +78,7 @@ async def join_meeting(body: JoinRequest, db: AsyncSession = Depends(get_db)):
         title=body.title,
         platform=platform,
         meeting_url=body.meeting_url,
-        status="processing..",
+        status="processing",
         bot_status="joining",
         recall_bot_id=bot_id,
     )
