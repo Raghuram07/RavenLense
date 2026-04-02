@@ -11,8 +11,8 @@ class Project(Base):
     name        = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     client      = Column(String(200), nullable=True)
-    created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+    created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                          onupdate=lambda: datetime.now(timezone.utc))
 
     meetings = relationship("Meeting", back_populates="project",
