@@ -3,7 +3,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import meetings, projects, bot
+from app.api import meetings, projects, bot, employees, knowledge, dashboard, performance, chat_api, clients
 from app.db.database import init_db
 
 app = FastAPI(
@@ -20,6 +20,7 @@ app.add_middleware(
         "https://raven-lense.vercel.app",
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://localhost:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -30,9 +31,15 @@ app.add_middleware(
 async def startup():
     await init_db()
 
-app.include_router(projects.router, prefix="/projects", tags=["Projects"])
-app.include_router(meetings.router,  prefix="/meetings",  tags=["Meetings"])
-app.include_router(bot.router,       prefix="/bot",       tags=["Bot"])
+app.include_router(projects.router,     prefix="/projects",     tags=["Projects"])
+app.include_router(meetings.router,     prefix="/meetings",     tags=["Meetings"])
+app.include_router(bot.router,          prefix="/bot",          tags=["Bot"])
+app.include_router(employees.router,    prefix="/employees",    tags=["Employees"])
+app.include_router(knowledge.router,    prefix="/knowledge",    tags=["Knowledge"])
+app.include_router(dashboard.router,    prefix="/dashboard",    tags=["Dashboard"])
+app.include_router(performance.router,  prefix="/performance",  tags=["Performance"])
+app.include_router(chat_api.router,     prefix="/chat",         tags=["Chat"])
+app.include_router(clients.router,      prefix="/clients",      tags=["Clients"])
 
 @app.get("/health", tags=["Health"])
 async def health():
