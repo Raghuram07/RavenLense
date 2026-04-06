@@ -1338,13 +1338,6 @@ html, body {
 .sb-toggle-btn svg { width: 12px; height: 12px; }
 
 /* ── PROJECT DETAIL TABS (pill style) ───────────── */
-.proj-tab-bar {
-  display: flex;
-  padding: 10px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
 .proj-tab-pill {
   display: flex;
   gap: 2px;

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Role, ROLE_META } from '../App'
 
 type RoleMeta = typeof ROLE_META[Role]
@@ -8,9 +9,10 @@ interface Props {
   role: Role
   onRoleChange: (r: Role) => void
   roleMeta: RoleMeta
+  centerSlot?: ReactNode
 }
 
-export default function Topbar({ dark, onToggleDark, role, onRoleChange, roleMeta }: Props) {
+export default function Topbar({ dark, onToggleDark, role, onRoleChange, roleMeta, centerSlot }: Props) {
   return (
     <div className="topbar">
       {/* Logo */}
@@ -24,8 +26,10 @@ export default function Topbar({ dark, onToggleDark, role, onRoleChange, roleMet
         RavenLens
       </div>
 
-      {/* Spacer */}
-      <div style={{ flex: 1 }} />
+      {/* Center slot (e.g. project tabs) */}
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+        {centerSlot}
+      </div>
 
       {/* Right side */}
       <div className="topbar-right">
