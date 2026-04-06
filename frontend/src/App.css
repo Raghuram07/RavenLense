@@ -264,7 +264,7 @@ html, body {
   overflow: hidden;
 }
 
-.sb-sec { padding: 14px 10px 6px; }
+.sb-sec { padding: 12px 10px 6px; }
 .sb-lbl {
   font-size: 10px;
   font-weight: 500;
@@ -1310,16 +1310,15 @@ html, body {
 .app-sidebar.collapsed .uinfo { display: none; }
 .app-sidebar.collapsed .nav-item { justify-content: center; padding: 8px; }
 .app-sidebar.collapsed .sb-sec { padding: 10px 4px 6px; }
-.app-sidebar.collapsed .sb-toggle { justify-content: center; padding: 10px 4px 0; }
 .app-sidebar.collapsed .user-row { justify-content: center; padding: 7px 4px; }
 .app-sidebar.collapsed .sb-sep { margin: 5px 6px; }
+.app-sidebar.collapsed .sb-sec-hdr { justify-content: center; }
 
-.sb-toggle {
+.sb-sec-hdr {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding: 10px 10px 0;
-  flex-shrink: 0;
+  justify-content: space-between;
+  margin-bottom: 4px;
 }
 .sb-toggle-btn {
   width: 24px;

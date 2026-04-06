@@ -16,25 +16,30 @@ export default function AppSidebar({ mode, onModeChange, roleMeta }: Props) {
   return (
     <div className={`app-sidebar${collapsed ? ' collapsed' : ''}`}>
 
-      {/* Collapse toggle */}
-      <div className="sb-toggle">
-        <button
-          className="sb-toggle-btn"
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            {collapsed
-              ? <path d="M6 3l5 5-5 5"/>
-              : <path d="M10 3L5 8l5 5"/>
-            }
-          </svg>
-        </button>
-      </div>
-
       {/* Overview */}
       <div className="sb-sec">
-        <span className="sb-lbl">Overview</span>
+        <div className="sb-sec-hdr">
+          <span className="sb-lbl">Overview</span>
+          <button
+            className="sb-toggle-btn"
+            onClick={() => setCollapsed(c => !c)}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              {collapsed ? (
+                <>
+                  <line x1="4" y1="2.5" x2="4" y2="13.5"/>
+                  <path d="M7 5.5l3 2.5-3 2.5"/>
+                </>
+              ) : (
+                <>
+                  <path d="M9 5.5L6 8l3 2.5"/>
+                  <line x1="12" y1="2.5" x2="12" y2="13.5"/>
+                </>
+              )}
+            </svg>
+          </button>
+        </div>
 
         <div
           className={`nav-item${mode === 'dashboard' ? ' active' : ''}`}
