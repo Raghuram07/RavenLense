@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv:*)",
+      "Bash(git fetch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(taskkill /F /FI \"WINDOWTITLE eq npm*\")",
+      "Bash(\"e:/Raven Lense/RavenLense/backend/venv/Scripts/pip.exe\" install pypdf)",
+      "Bash(venv/Scripts/python.exe -c ':*)",
+      "Bash(ls \"e:/Raven Lense/RavenLense/backend/\"*.db)"
+    ]
+  }
+}

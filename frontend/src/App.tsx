@@ -1,11 +1,75 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Project, MeetingListItem, Meeting } from './types'
 import * as api from './api'
-import Sidebar from './components/Sidebar'
-import MeetingList from './components/MeetingList'
-import MeetingDetail from './components/MeetingDetail'
+import Topbar from './components/Topbar'
+import AppSidebar from './components/AppSidebar'
+import Dashboard from './components/panels/Dashboard'
+import Chat from './components/panels/Chat'
+import Knowledge from './components/panels/Knowledge'
+import Performance from './components/panels/Performance'
+import Employees from './components/panels/Employees'
+import Projects from './components/panels/Projects'
+import './App.css'
+
+export type Mode = 'dashboard' | 'chat' | 'knowledge' | 'performance' | 'employees' | 'projects'
+export type Role = 'admin' | 'manager' | 'employee'
+
+export const ROLE_META: Record<Role, {
+  name: string
+  initials: string
+  roleLabel: string
+  badgeClass: string
+  sbRoleLabel: string
+  showModes: Mode[]
+  showAdminSection: boolean
+  dashTitle: string
+  dashSub: string
+  ragView: 'admin' | 'manager' | 'employee'
+}> = {
+  admin: {
+    name: 'Raghuram',
+    initials: 'RG',
+    roleLabel: 'Admin',
+    badgeClass: 'rb-admin',
+    sbRoleLabel: 'Admin · RavenLens',
+    showModes: ['dashboard', 'chat', 'knowledge', 'performance', 'employees', 'projects'],
+    showAdminSection: true,
+    dashTitle: 'Good morning, Raghuram.',
+    dashSub: 'Org-wide view — all projects, all users.',
+    ragView: 'admin',
+  },
+  manager: {
+    name: 'Sarah J.',
+    initials: 'SJ',
+    roleLabel: 'Manager',
+    badgeClass: 'rb-manager',
+    sbRoleLabel: 'Manager · RavenLens',
+    showModes: ['dashboard', 'chat', 'knowledge', 'performance'],
+    showAdminSection: false,
+    dashTitle: 'Good morning, Sarah.',
+    dashSub: 'RavenLens project — your team this week.',
+    ragView: 'manager',
+  },
+  employee: {
+    name: 'Sneha K.',
+    initials: 'SK',
+    roleLabel: 'Employee',
+    badgeClass: 'rb-employee',
+    sbRoleLabel: 'Employee · RavenLens',
+    showModes: ['dashboard', 'chat', 'knowledge', 'performance'],
+    showAdminSection: false,
+    dashTitle: 'Good morning, Sneha.',
+    dashSub: 'Your meetings and actions this week.',
+    ragView: 'employee',
+  },
+}
 
 export default function App() {
+  const [dark, setDark] = useState(false)
+  const [role, setRole] = useState<Role>('admin')
+  const [mode, setMode] = useState<Mode>('dashboard')
+
+  // API state
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [meetings, setMeetings] = useState<MeetingListItem[]>([])
@@ -52,6 +116,11 @@ export default function App() {
     handleSelectProject(project)
   }
 
+  const handleProjectUpdated = (project: Project) => {
+    setProjects(p => p.map(x => x.id === project.id ? project : x))
+    if (selectedProject?.id === project.id) setSelectedProject(project)
+  }
+
   const handleSelectMeeting = async (item: MeetingListItem) => {
     try {
       const data = await api.fetchMeeting(item.id)
@@ -77,11 +146,10 @@ export default function App() {
       if (selectedProject) await loadMeetings(selectedProject.id)
       return
     }
-
     const placeholderItem: MeetingListItem = {
       id: meetingId,
       project_id: projectId,
-      title: title,
+      title,
       platform: null,
       meeting_date: null,
       created_at: new Date().toISOString(),
@@ -90,7 +158,6 @@ export default function App() {
       action_count: 0,
     }
     setMeetings(m => [placeholderItem, ...m])
-
     setProjects(p =>
       p.map(x => x.id === projectId ? { ...x, meeting_count: x.meeting_count + 1 } : x)
     )
@@ -117,42 +184,65 @@ export default function App() {
     }
   }
 
+  const switchMode = (m: Mode) => {
+    const meta = ROLE_META[role]
+    if (!meta.showModes.includes(m)) return
+    setMode(m)
+  }
+
+  const switchRole = (r: Role) => {
+    setRole(r)
+    const meta = ROLE_META[r]
+    if (!meta.showModes.includes(mode)) {
+      setMode('dashboard')
+    }
+  }
+
+  const roleMeta = ROLE_META[role]
+
   return (
-    <div className="layout">
-      <Sidebar
-        projects={projects}
-        selectedId={selectedProject?.id ?? null}
-        onSelect={handleSelectProject}
-        onDelete={handleDeleteProject}
-        onCreated={handleProjectCreated}
+    <div className={`shell${dark ? ' dark' : ''}`}>
+      <Topbar
+        dark={dark}
+        onToggleDark={() => setDark(d => !d)}
+        role={role}
+        onRoleChange={switchRole}
+        mode={mode}
+        onModeChange={switchMode}
+        roleMeta={roleMeta}
       />
-      <div className="main">
-        {!selectedProject ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">🪟</div>
-            <h3>Select a project to get started</h3>
-          </div>
-        ) : (
-          <>
-            <MeetingList
-              project={selectedProject}
+      <div className="app-main">
+        <AppSidebar
+          role={role}
+          mode={mode}
+          onModeChange={switchMode}
+          roleMeta={roleMeta}
+        />
+        <div className="app-content">
+          {mode === 'dashboard' && (
+            <Dashboard role={role} roleMeta={roleMeta} projects={projects} meetings={meetings} />
+          )}
+          {mode === 'chat' && <Chat roleMeta={roleMeta} selectedProject={selectedProject} />}
+          {mode === 'knowledge' && <Knowledge role={role} selectedProject={selectedProject} />}
+          {mode === 'performance' && <Performance />}
+          {mode === 'employees' && <Employees />}
+          {mode === 'projects' && (
+            <Projects
+              projects={projects}
+              selectedProject={selectedProject}
               meetings={meetings}
-              selectedId={selectedMeeting?.id ?? null}
-              onSelect={handleSelectMeeting}
-              onDelete={handleDeleteMeeting}
-              onUploaded={handleMeetingUploaded}
+              selectedMeeting={selectedMeeting}
+              onSelectProject={handleSelectProject}
+              onDeleteProject={handleDeleteProject}
+              onProjectCreated={handleProjectCreated}
+              onProjectUpdated={handleProjectUpdated}
+              onSelectMeeting={handleSelectMeeting}
+              onDeleteMeeting={handleDeleteMeeting}
               onBotJoined={handleBotJoined}
+              onMeetingUploaded={handleMeetingUploaded}
             />
-            {selectedMeeting ? (
-              <MeetingDetail meeting={selectedMeeting} />
-            ) : (
-              <div className="empty-state">
-                <div className="empty-state-icon">📋</div>
-                <h3>Select a meeting to view MOM</h3>
-              </div>
-            )}
-          </>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )
