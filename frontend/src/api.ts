@@ -121,12 +121,26 @@ export const createClient = (data: ClientCreate) =>
     body: JSON.stringify(data),
   })
 
+export const updateClient = (id: string, data: { name?: string; email?: string; phone?: string }) =>
+  req<Client>(`/clients/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+
 export const deleteClient = (id: string) =>
   req<void>(`/clients/${id}`, { method: 'DELETE' })
 
 export const addClientContact = (clientId: string, data: { name: string; email?: string; role?: string }) =>
   req<ClientContact>(`/clients/${clientId}/contacts`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+
+export const updateClientContact = (clientId: string, contactId: string, data: { name?: string; email?: string; role?: string }) =>
+  req<ClientContact>(`/clients/${clientId}/contacts/${contactId}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })

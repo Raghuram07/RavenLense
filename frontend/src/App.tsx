@@ -4,14 +4,13 @@ import * as api from './api'
 import Topbar from './components/Topbar'
 import AppSidebar from './components/AppSidebar'
 import Dashboard from './components/panels/Dashboard'
-import Chat from './components/panels/Chat'
-import Knowledge from './components/panels/Knowledge'
 import Performance from './components/panels/Performance'
 import Employees from './components/panels/Employees'
+import Clients from './components/panels/Clients'
 import Projects from './components/panels/Projects'
 import './App.css'
 
-export type Mode = 'dashboard' | 'chat' | 'knowledge' | 'performance' | 'employees' | 'projects'
+export type Mode = 'dashboard' | 'performance' | 'employees' | 'clients' | 'projects'
 export type Role = 'admin' | 'manager' | 'employee'
 
 export const ROLE_META: Record<Role, {
@@ -32,7 +31,7 @@ export const ROLE_META: Record<Role, {
     roleLabel: 'Admin',
     badgeClass: 'rb-admin',
     sbRoleLabel: 'Admin · RavenLens',
-    showModes: ['dashboard', 'chat', 'knowledge', 'performance', 'employees', 'projects'],
+    showModes: ['dashboard', 'performance', 'employees', 'clients', 'projects'],
     showAdminSection: true,
     dashTitle: 'Good morning, Raghuram.',
     dashSub: 'Org-wide view — all projects, all users.',
@@ -44,7 +43,7 @@ export const ROLE_META: Record<Role, {
     roleLabel: 'Manager',
     badgeClass: 'rb-manager',
     sbRoleLabel: 'Manager · RavenLens',
-    showModes: ['dashboard', 'chat', 'knowledge', 'performance'],
+    showModes: ['dashboard', 'performance'],
     showAdminSection: false,
     dashTitle: 'Good morning, Sarah.',
     dashSub: 'RavenLens project — your team this week.',
@@ -56,7 +55,7 @@ export const ROLE_META: Record<Role, {
     roleLabel: 'Employee',
     badgeClass: 'rb-employee',
     sbRoleLabel: 'Employee · RavenLens',
-    showModes: ['dashboard', 'chat', 'knowledge', 'performance'],
+    showModes: ['dashboard', 'performance'],
     showAdminSection: false,
     dashTitle: 'Good morning, Sneha.',
     dashSub: 'Your meetings and actions this week.',
@@ -207,8 +206,6 @@ export default function App() {
         onToggleDark={() => setDark(d => !d)}
         role={role}
         onRoleChange={switchRole}
-        mode={mode}
-        onModeChange={switchMode}
         roleMeta={roleMeta}
       />
       <div className="app-main">
@@ -222,10 +219,9 @@ export default function App() {
           {mode === 'dashboard' && (
             <Dashboard role={role} roleMeta={roleMeta} projects={projects} meetings={meetings} />
           )}
-          {mode === 'chat' && <Chat roleMeta={roleMeta} selectedProject={selectedProject} />}
-          {mode === 'knowledge' && <Knowledge role={role} selectedProject={selectedProject} />}
           {mode === 'performance' && <Performance />}
           {mode === 'employees' && <Employees />}
+          {mode === 'clients' && <Clients />}
           {mode === 'projects' && (
             <Projects
               projects={projects}
@@ -240,6 +236,8 @@ export default function App() {
               onDeleteMeeting={handleDeleteMeeting}
               onBotJoined={handleBotJoined}
               onMeetingUploaded={handleMeetingUploaded}
+              role={role}
+              roleMeta={roleMeta}
             />
           )}
         </div>

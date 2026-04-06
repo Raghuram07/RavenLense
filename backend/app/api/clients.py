@@ -98,6 +98,28 @@ async def get_client(client_id: str, db: AsyncSession = Depends(get_db)):
     return client
 
 
+@router.patch("/{client_id}", response_model=ClientResponse)
+async def update_client(client_id: str, body: ClientCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Client).options(selectinload(Client.contacts)).where(Client.id == client_id)
+    )
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if body.name is not None:
+        client.name = body.name
+    if body.email is not None:
+        client.email = body.email
+    if body.phone is not None:
+        client.phone = body.phone
+    await db.commit()
+    await db.refresh(client)
+    result2 = await db.execute(
+        select(Client).options(selectinload(Client.contacts)).where(Client.id == client_id)
+    )
+    return result2.scalar_one()
+
+
 @router.delete("/{client_id}", status_code=204)
 async def delete_client(client_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Client).where(Client.id == client_id))
@@ -118,6 +140,26 @@ async def add_contact(client_id: str, body: ContactCreate, db: AsyncSession = De
 
     contact = ClientContact(client_id=client_id, name=body.name, email=body.email, role=body.role)
     db.add(contact)
+    await db.commit()
+    await db.refresh(contact)
+    return contact
+
+
+@router.patch("/{client_id}/contacts/{contact_id}", response_model=ContactResponse)
+async def update_contact(client_id: str, contact_id: str, body: ContactCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ClientContact)
+        .where(ClientContact.id == contact_id, ClientContact.client_id == client_id)
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    if body.name is not None:
+        contact.name = body.name
+    if body.email is not None:
+        contact.email = body.email
+    if body.role is not None:
+        contact.role = body.role
     await db.commit()
     await db.refresh(contact)
     return contact

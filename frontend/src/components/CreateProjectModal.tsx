@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Project, Employee } from '../types'
+import type { Project, Employee, Client } from '../types'
 import * as api from '../api'
 
 interface MemberRow {
@@ -37,11 +37,13 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
   // Step 3 – client contacts
   const [clientMembers, setClientMembers] = useState<MemberRow[]>([emptyMember('client')])
 
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
 
   useEffect(() => {
     api.fetchEmployees().then(setEmployees).catch(() => {})
+    api.fetchClients().then(setClients).catch(() => {})
   }, [])
 
   // ── member row helpers ──
@@ -103,7 +105,7 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ width: 560, maxWidth: '95vw' }} onClick={e => e.stopPropagation()}>
+      <div className="modal" style={{ width: 820, maxWidth: '96vw' }} onClick={e => e.stopPropagation()}>
 
         {/* Header + step indicator */}
         <div className="modal-title" style={{ marginBottom: 4 }}>New Project</div>
@@ -134,8 +136,12 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
             </div>
             <div className="form-group">
               <label className="form-label">Client / Organisation</label>
-              <input className="form-input" value={client} onChange={e => setClient(e.target.value)}
-                placeholder="e.g. Acme Corp" />
+              <select className="form-input" value={client} onChange={e => setClient(e.target.value)}>
+                <option value="">— Select client —</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+              </select>
             </div>
             {error && <div className="error-msg">{error}</div>}
             <div className="modal-actions">
@@ -151,13 +157,13 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
         {step === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Step 2 of 3 — Internal team members
+              Step 2 of 3 — Our employees
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--text2)' }}>
               Add your team — everyone who will participate in meetings for this project.
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
               {teamMembers.map((m, i) => (
                 <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
                   <div style={{ flex: 2, minWidth: 0 }}>
@@ -219,7 +225,7 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
               Add client-side participants — stakeholders or vendor contacts who attend meetings.
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
               {clientMembers.map((m, i) => (
                 <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
                   <div style={{ flex: 2, minWidth: 0 }}>

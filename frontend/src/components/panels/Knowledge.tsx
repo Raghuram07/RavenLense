@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { Role } from '../../App'
 import type { KnowledgeFolder, KnowledgeFile, Project } from '../../types'
 import * as api from '../../api'
@@ -94,24 +94,48 @@ interface AdminViewProps {
 }
 
 function AdminView({ folders, selectedFolderId, onFolderDeleted }: AdminViewProps) {
-  const [files, setFiles]         = useState<KnowledgeFile[]>([])
-  const [loading, setLoading]     = useState(false)
-  const [selectedFile, setSelectedFile] = useState<KnowledgeFile | null>(null)
+  const [files, setFiles]               = useState<KnowledgeFile[]>([])
+  const [loading, setLoading]           = useState(false)
+  const [uploading, setUploading]       = useState(false)
+  const [uploadError, setUploadError]   = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (!selectedFolderId) { setFiles([]); setSelectedFile(null); return }
+  const loadFiles = useCallback((folderId: string) => {
     setLoading(true)
-    api.fetchFiles({ folder_id: selectedFolderId })
-      .then(data => { setFiles(data); setSelectedFile(data[0] ?? null) })
+    api.fetchFiles({ folder_id: folderId })
+      .then(data => setFiles(data))
       .catch(() => setFiles([]))
       .finally(() => setLoading(false))
-  }, [selectedFolderId])
+  }, [])
+
+  useEffect(() => {
+    if (!selectedFolderId) { setFiles([]); return }
+    loadFiles(selectedFolderId)
+  }, [selectedFolderId, loadFiles])
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !selectedFolderId) return
+    setUploading(true)
+    setUploadError('')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('folder_id', selectedFolderId)
+      const uploaded = await api.uploadKnowledgeFile(form)
+      setFiles(prev => [uploaded, ...prev])
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const handleDeleteFile = async (file: KnowledgeFile) => {
     if (!confirm(`Delete "${file.name}"?`)) return
     await api.deleteKnowledgeFile(file.id)
     setFiles(prev => prev.filter(f => f.id !== file.id))
-    if (selectedFile?.id === file.id) setSelectedFile(null)
   }
 
   const handleDeleteFolder = async () => {
@@ -135,24 +159,39 @@ function AdminView({ folders, selectedFolderId, onFolderDeleted }: AdminViewProp
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div className="rag-toolbar">
-        <span className="rag-ftitle">{selectedFile?.name ?? folder?.name}</span>
-        {selectedFile && (
-          <span className="rag-fmeta">
-            · {fmtSize(selectedFile.size_bytes)} · {fmtDate(selectedFile.created_at)}
-            {selectedFile.reviewed_by_name ? ` · Reviewed by ${selectedFile.reviewed_by_name}` : ''}
-          </span>
-        )}
+        <span className="rag-ftitle">{folder?.emoji} {folder?.name}</span>
+        <span className="rag-fmeta">· {files.length} file{files.length !== 1 ? 's' : ''}</span>
         <div className="rag-acts">
+          <button
+            className="btn sm"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? '⏳ Uploading…' : '⬆ Upload file'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.vtt,.txt,.docx,.md"
+            style={{ display: 'none' }}
+            onChange={handleUpload}
+          />
           <button className="btn sm danger" onClick={handleDeleteFolder}>Delete folder</button>
         </div>
       </div>
+
       <div className="rag-content">
+        {uploadError && (
+          <div className="error-msg" style={{ marginBottom: 12 }}>{uploadError}</div>
+        )}
         {loading && (
           <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '24px 0' }}>Loading…</div>
         )}
         {!loading && files.length === 0 && (
-          <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '24px 0' }}>
-            No files in this folder yet.
+          <div className="drop-zone" onClick={() => fileInputRef.current?.click()} style={{ cursor: 'pointer' }}>
+            <div className="dz-icon">⬆</div>
+            <div className="dz-title">Upload the first file to this folder</div>
+            <div className="dz-sub">Supports .pdf, .vtt, .txt, .docx, .md</div>
           </div>
         )}
         <div className="file-list">
@@ -175,8 +214,10 @@ function AdminView({ folders, selectedFolderId, onFolderDeleted }: AdminViewProp
                 )}
               </div>
               <div className="fi-status">
-                <span className={`status ${f.status === 'approved' ? 'st-done' : f.status === 'rejected' ? '' : 'st-pend'}`}
-                  style={f.status === 'rejected' ? { background: 'var(--red-bg)', color: 'var(--red)' } : undefined}>
+                <span
+                  className={`status ${f.status === 'approved' ? 'st-done' : f.status === 'rejected' ? '' : 'st-pend'}`}
+                  style={f.status === 'rejected' ? { background: 'var(--red-bg)', color: 'var(--red)' } : undefined}
+                >
                   {f.status.charAt(0).toUpperCase() + f.status.slice(1)}
                 </span>
               </div>
@@ -312,17 +353,26 @@ function ManagerView() {
 // ── Employee view ─────────────────────────────────────────
 
 interface EmployeeViewProps {
-  folders:   KnowledgeFolder[]
-  projectId: string | null
+  folders:        KnowledgeFolder[]
+  projectId:      string | null
+  triggerUpload?: boolean
+  onUploadTriggered?: () => void
 }
 
-function EmployeeView({ folders, projectId }: EmployeeViewProps) {
+function EmployeeView({ folders, projectId, triggerUpload, onUploadTriggered }: EmployeeViewProps) {
   const [myFiles, setMyFiles]       = useState<KnowledgeFile[]>([])
   const [loading, setLoading]       = useState(true)
   const [uploading, setUploading]   = useState(false)
   const [selectedFolderId, setSelectedFolderId] = useState('')
   const [uploaderName, setUploaderName] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (triggerUpload) {
+      fileRef.current?.click()
+      onUploadTriggered?.()
+    }
+  }, [triggerUpload, onUploadTriggered])
 
   const loadMyFiles = () => {
     setLoading(true)
@@ -451,6 +501,7 @@ export default function Knowledge({ role, selectedProject }: Props) {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [search, setSearch]             = useState('')
   const [loading, setLoading]           = useState(true)
+  const [triggerEmpUpload, setTriggerEmpUpload] = useState(false)
 
   const loadData = () => {
     setLoading(true)
@@ -563,7 +614,7 @@ export default function Knowledge({ role, selectedProject }: Props) {
             </button>
           )}
           {role !== 'admin' && (
-            <button className="rag-upload-btn" onClick={() => {}}>
+            <button className="rag-upload-btn" onClick={() => setTriggerEmpUpload(true)}>
               ⬆ Upload file
             </button>
           )}
@@ -584,7 +635,14 @@ export default function Knowledge({ role, selectedProject }: Props) {
           />
         )}
         {role === 'manager' && <ManagerView />}
-        {role === 'employee' && <EmployeeView folders={folders} projectId={projectId} />}
+        {role === 'employee' && (
+          <EmployeeView
+            folders={folders}
+            projectId={projectId}
+            triggerUpload={triggerEmpUpload}
+            onUploadTriggered={() => setTriggerEmpUpload(false)}
+          />
+        )}
       </div>
 
       {showNewFolder && (
