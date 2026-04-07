@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Project, MeetingListItem, Meeting, Employee, Client, ProjectMember } from '../../types'
-import type { Role, ROLE_META } from '../../App'
+import type { Role, ROLE_META, ProjectTab } from '../../App'
 import MeetingList from '../MeetingList'
 import MeetingDetail from '../MeetingDetail'
 import CreateProjectModal from '../CreateProjectModal'
@@ -9,7 +9,6 @@ import Knowledge from './Knowledge'
 import * as api from '../../api'
 
 type RoleMeta = typeof ROLE_META[Role]
-type ProjectTab = 'overview' | 'chat' | 'knowledge' | 'actions' | 'meetings' | 'uploads'
 
 // ── Edit Project modal ────────────────────────────────────
 
@@ -407,7 +406,6 @@ interface Props {
   selectedProject: Project | null
   meetings: MeetingListItem[]
   selectedMeeting: Meeting | null
-  onSelectProject: (p: Project) => void
   onDeleteProject: (id: string) => void
   onProjectCreated: (p: Project) => void
   onProjectUpdated: (p: Project) => void
@@ -417,6 +415,10 @@ interface Props {
   onMeetingUploaded: (m: Meeting) => void
   role: Role
   roleMeta: RoleMeta
+  viewingProject: Project | null
+  onEnterProject: (p: Project) => void
+  onBack: () => void
+  projectTab: ProjectTab
 }
 
 export default function Projects({
@@ -424,7 +426,6 @@ export default function Projects({
   selectedProject,
   meetings,
   selectedMeeting,
-  onSelectProject,
   onDeleteProject,
   onProjectCreated,
   onProjectUpdated,
@@ -434,31 +435,13 @@ export default function Projects({
   onMeetingUploaded,
   role,
   roleMeta,
+  viewingProject,
+  onEnterProject,
+  onBack,
+  projectTab,
 }: Props) {
   const [showCreate, setShowCreate] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const [viewingProject, setViewingProject] = useState<Project | null>(null)
-  const [projectTab, setProjectTab] = useState<ProjectTab>('overview')
-
-  const handleEnterProject = (p: Project) => {
-    setViewingProject(p)
-    setProjectTab('overview')
-    onSelectProject(p)
-  }
-
-  const handleBack = () => {
-    setViewingProject(null)
-    setProjectTab('overview')
-  }
-
-  const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
-    { id: 'overview',  label: 'Overview' },
-    { id: 'chat',      label: 'Chat' },
-    { id: 'knowledge', label: 'Knowledge Base' },
-    { id: 'actions',   label: 'Action Items' },
-    { id: 'meetings',  label: 'Meetings' },
-    { id: 'uploads',   label: 'Uploads' },
-  ]
 
   // ── Project detail view ──
   if (viewingProject) {
@@ -466,7 +449,7 @@ export default function Projects({
       <div className="proj-panel-wrap">
         {/* Back bar */}
         <div className="proj-back-bar">
-          <button className="proj-back-btn" onClick={handleBack}>
+          <button className="proj-back-btn" onClick={onBack}>
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M10 3L5 8l5 5"/>
             </svg>
@@ -480,21 +463,6 @@ export default function Projects({
             </span>
           )}
           <span className="proj-status ps-active" style={{ marginLeft: 'auto' }}>Active</span>
-        </div>
-
-        {/* Pill-style tab bar */}
-        <div className="proj-tab-bar">
-          <div className="proj-tab-pill">
-            {PROJECT_TABS.map(t => (
-              <button
-                key={t.id}
-                className={`proj-tab-btn${projectTab === t.id ? ' active' : ''}`}
-                onClick={() => setProjectTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Tab content */}
@@ -577,7 +545,7 @@ export default function Projects({
           <div
             key={p.id}
             className="proj-card"
-            onClick={() => handleEnterProject(p)}
+            onClick={() => onEnterProject(p)}
           >
             <div className="proj-card-top">
               <div className={`proj-icon ${ICON_CLASSES[i % ICON_CLASSES.length]}`}>

@@ -12,6 +12,16 @@ import './App.css'
 
 export type Mode = 'dashboard' | 'performance' | 'employees' | 'clients' | 'projects'
 export type Role = 'admin' | 'manager' | 'employee'
+export type ProjectTab = 'overview' | 'chat' | 'knowledge' | 'actions' | 'meetings' | 'uploads'
+
+const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
+  { id: 'overview',  label: 'Overview' },
+  { id: 'chat',      label: 'Chat' },
+  { id: 'knowledge', label: 'Knowledge Base' },
+  { id: 'actions',   label: 'Action Items' },
+  { id: 'meetings',  label: 'Meetings' },
+  { id: 'uploads',   label: 'Uploads' },
+]
 
 export const ROLE_META: Record<Role, {
   name: string
@@ -74,6 +84,10 @@ export default function App() {
   const [meetings, setMeetings] = useState<MeetingListItem[]>([])
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null)
 
+  // Project detail view state
+  const [viewingProject, setViewingProject] = useState<Project | null>(null)
+  const [projectTab, setProjectTab] = useState<ProjectTab>('overview')
+
   const loadProjects = useCallback(async () => {
     try {
       const data = await api.fetchProjects()
@@ -98,6 +112,17 @@ export default function App() {
     setSelectedProject(project)
     setSelectedMeeting(null)
     loadMeetings(project.id)
+  }
+
+  const handleEnterProject = (project: Project) => {
+    setViewingProject(project)
+    setProjectTab('overview')
+    handleSelectProject(project)
+  }
+
+  const handleBackFromProject = () => {
+    setViewingProject(null)
+    setProjectTab('overview')
   }
 
   const handleDeleteProject = async (id: string) => {
@@ -207,6 +232,19 @@ export default function App() {
         role={role}
         onRoleChange={switchRole}
         roleMeta={roleMeta}
+        centerSlot={mode === 'projects' && viewingProject ? (
+          <div className="proj-tab-pill">
+            {PROJECT_TABS.map(t => (
+              <button
+                key={t.id}
+                className={`proj-tab-btn${projectTab === t.id ? ' active' : ''}`}
+                onClick={() => setProjectTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        ) : undefined}
       />
       <div className="app-main">
         <AppSidebar
@@ -228,7 +266,6 @@ export default function App() {
               selectedProject={selectedProject}
               meetings={meetings}
               selectedMeeting={selectedMeeting}
-              onSelectProject={handleSelectProject}
               onDeleteProject={handleDeleteProject}
               onProjectCreated={handleProjectCreated}
               onProjectUpdated={handleProjectUpdated}
@@ -238,6 +275,10 @@ export default function App() {
               onMeetingUploaded={handleMeetingUploaded}
               role={role}
               roleMeta={roleMeta}
+              viewingProject={viewingProject}
+              onEnterProject={handleEnterProject}
+              onBack={handleBackFromProject}
+              projectTab={projectTab}
             />
           )}
         </div>
