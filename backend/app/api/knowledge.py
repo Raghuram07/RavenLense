@@ -1,15 +1,19 @@
 import io
+import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.database import get_db
+from app.db.database import get_db, AsyncSessionLocal
 from app.models.knowledge import KnowledgeFolder, KnowledgeFile
+from app.services.s3_uploader import upload_file_to_s3
+from app.services.bedrock_service import trigger_ingestion
 
+logger = logging.getLogger("ravenlens.knowledge")
 router = APIRouter()
 
 # ── Helpers ───────────────────────────────────────────────
@@ -71,6 +75,7 @@ class FileResponse(BaseModel):
     name:             str
     mime_type:        Optional[str]
     size_bytes:       Optional[int]
+    s3_key:           Optional[str] = None
     status:           str
     uploaded_by_name: Optional[str]
     rejection_reason: Optional[str]
@@ -196,6 +201,7 @@ async def upload_file(
         mime_type=file.content_type,
         size_bytes=size_bytes,
         content=content,
+        file_data=raw_bytes,
         status="pending",
         uploaded_by_name=uploaded_by_name,
     )
@@ -214,8 +220,56 @@ async def get_file(file_id: str, db: AsyncSession = Depends(get_db)):
     return kf
 
 
+def _s3_upload_job(file_id: str, file_data: bytes, filename: str,
+                   project_id: str, mime_type: Optional[str]):
+    """
+    Synchronous background job — runs after the response is sent.
+    Uploads the file to S3, then clears file_data in the DB.
+    """
+    import asyncio
+
+    async def _do_upload():
+        try:
+            s3_key = upload_file_to_s3(
+                file_data=file_data,
+                filename=filename,
+                project_id=project_id,
+                file_id=file_id,
+                mime_type=mime_type,
+            )
+            # Persist the s3_key and clear raw bytes
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(KnowledgeFile).where(KnowledgeFile.id == file_id)
+                )
+                kf = result.scalar_one_or_none()
+                if kf:
+                    kf.s3_key = s3_key
+                    kf.file_data = None  # free DB space
+                    await session.commit()
+                    logger.info("S3 upload complete for file %s → %s", file_id, s3_key)
+
+            # Trigger Bedrock ingestion to index the new file
+            try:
+                job_id = trigger_ingestion()
+                if job_id:
+                    logger.info("Bedrock ingestion triggered — job=%s", job_id)
+            except Exception:
+                logger.exception("Bedrock ingestion trigger failed (non-blocking)")
+
+        except Exception:
+            logger.exception("S3 upload failed for file %s", file_id)
+
+    asyncio.run(_do_upload())
+
+
 @router.post("/files/{file_id}/approve", response_model=FileResponse)
-async def approve_file(file_id: str, body: ApproveBody, db: AsyncSession = Depends(get_db)):
+async def approve_file(
+    file_id: str,
+    body: ApproveBody,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(select(KnowledgeFile).where(KnowledgeFile.id == file_id))
     kf = result.scalar_one_or_none()
     if not kf:
@@ -227,6 +281,21 @@ async def approve_file(file_id: str, body: ApproveBody, db: AsyncSession = Depen
     kf.rejection_reason = None
     await db.commit()
     await db.refresh(kf)
+
+    # Schedule S3 upload as a background job
+    if kf.file_data and kf.project_id:
+        background_tasks.add_task(
+            _s3_upload_job,
+            file_id=kf.id,
+            file_data=kf.file_data,
+            filename=kf.name,
+            project_id=kf.project_id,
+            mime_type=kf.mime_type,
+        )
+        logger.info("Queued S3 upload for file %s (project %s)", kf.id, kf.project_id)
+    elif not kf.project_id:
+        logger.warning("Skipping S3 upload for file %s — no project_id", kf.id)
+
     return kf
 
 
