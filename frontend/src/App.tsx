@@ -12,14 +12,15 @@ import './App.css'
 
 export type Mode = 'dashboard' | 'performance' | 'employees' | 'clients' | 'projects'
 export type Role = 'admin' | 'manager' | 'employee'
-export type ProjectTab = 'overview' | 'chat' | 'knowledge' | 'actions' | 'meetings' | 'uploads'
+export type ProjectTab = 'overview' | 'chat' | 'knowledge' | 'actions' | 'meetings' | 'uploads' | 'calendar'
 
 const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
   { id: 'overview',  label: 'Overview' },
+  { id: 'meetings',  label: 'Meetings' },
+  { id: 'calendar',  label: 'Calendar' },
   { id: 'chat',      label: 'Chat' },
   { id: 'knowledge', label: 'Knowledge Base' },
   { id: 'actions',   label: 'Action Items' },
-  { id: 'meetings',  label: 'Meetings' },
   { id: 'uploads',   label: 'Uploads' },
 ]
 

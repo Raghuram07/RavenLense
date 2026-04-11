@@ -6,6 +6,7 @@ import MeetingDetail from '../MeetingDetail'
 import CreateProjectModal from '../CreateProjectModal'
 import Chat from './Chat'
 import Knowledge from './Knowledge'
+import ProjectCalendar from '../ProjectCalendar'
 import * as api from '../../api'
 
 type RoleMeta = typeof ROLE_META[Role]
@@ -423,7 +424,6 @@ interface Props {
 
 export default function Projects({
   projects,
-  selectedProject,
   meetings,
   selectedMeeting,
   onDeleteProject,
@@ -484,6 +484,10 @@ export default function Projects({
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <Knowledge role={role} selectedProject={viewingProject} />
           </div>
+        )}
+
+        {projectTab === 'calendar' && (
+          <ProjectCalendar project={viewingProject} />
         )}
 
         {projectTab === 'actions' && (
