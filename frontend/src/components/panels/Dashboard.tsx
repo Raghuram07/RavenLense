@@ -65,24 +65,24 @@ export default function Dashboard({ roleMeta, projects, meetings }: Props) {
       {/* Metrics */}
       <div className="metrics">
         <div className="metric">
-          <div className="metric-val">{totalMeetings}</div>
+          <div className="metric-val val-blue">{totalMeetings}</div>
           <div className="metric-lbl">Meetings processed</div>
           <div className="metric-delta up">↑ this week</div>
         </div>
         <div className="metric">
-          <div className="metric-val">{actionItems}</div>
+          <div className="metric-val val-accent">{actionItems}</div>
           <div className="metric-lbl">Action items tracked</div>
           <div className="metric-delta dn">{pendingMeetings > 0 ? `${pendingMeetings} pending` : 'All caught up'}</div>
         </div>
         <div className="metric">
-          <div className="metric-val">
+          <div className="metric-val val-green">
             {totalMeetings > 0 ? Math.round((doneMeetings / totalMeetings) * 100) : 0}%
           </div>
           <div className="metric-lbl">MOM completion rate</div>
           <div className="metric-delta up">↑ this sprint</div>
         </div>
         <div className="metric">
-          <div className="metric-val">{projects.length}</div>
+          <div className="metric-val val-blue">{projects.length}</div>
           <div className="metric-lbl">Active projects</div>
           <div className="metric-delta neu">Across all teams</div>
         </div>

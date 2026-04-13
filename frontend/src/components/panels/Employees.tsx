@@ -20,6 +20,13 @@ function initials(emp: Employee) {
   return `${emp.first_name[0] ?? ''}${emp.last_name[0] ?? ''}`.toUpperCase()
 }
 
+const AV_COLORS = ['av-blue', 'av-teal', 'av-purple', 'av-green', 'av-orange', 'av-pink', 'av-indigo', 'av-amber']
+function avColor(name: string) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return AV_COLORS[h % AV_COLORS.length]
+}
+
 // ── Invite Employee modal ─────────────────────────────────
 
 interface InviteModalProps {
@@ -207,7 +214,7 @@ function TeamTab() {
           ) : filtered.map(emp => (
             <div key={emp.id} className="et-row">
               <div className="emp-name-cell">
-                <div className="emp-av">{initials(emp)}</div>
+                <div className={`emp-av ${avColor(emp.first_name + emp.last_name)}`}>{initials(emp)}</div>
                 <div>
                   <div className="emp-name">{emp.first_name} {emp.last_name}</div>
                   <div className="emp-email">{emp.email}</div>

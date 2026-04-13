@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//e/Raven Lense/RavenLense/frontend/**)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

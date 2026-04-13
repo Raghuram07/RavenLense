@@ -49,7 +49,7 @@ def upload_file_to_s3(
 
     s3_key = f"{project_id}/{file_id}_{filename}"
 
-    extra_args = {}
+    extra_args: dict = {"Metadata": {"project_id": project_id}}
     if mime_type:
         extra_args["ContentType"] = mime_type
 

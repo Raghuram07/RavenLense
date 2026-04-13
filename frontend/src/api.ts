@@ -4,7 +4,7 @@ import type {
   Client, ClientCreate, ClientContact,
   KnowledgeFolder, KnowledgeFile,
   OpenActionItem, PerformanceOverview, PerformanceMember,
-  ChatResponse, ProjectMember,
+  ChatSession, ChatMessage, ProjectMember,
 } from './types'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
@@ -213,9 +213,26 @@ export const fetchPerformanceMembers = () =>
 
 // ── Chat ──────────────────────────────────────────────────
 
-export const askChat = (question: string, projectId?: string, meetingIds?: string[]) =>
-  req<ChatResponse>('/chat/ask', {
+export const createChatSession = (title?: string) =>
+  req<ChatSession>('/chat/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, project_id: projectId, meeting_ids: meetingIds }),
+    body: JSON.stringify({ title: title ?? 'New Chat' }),
   })
+
+export const fetchChatSessions = () =>
+  req<ChatSession[]>('/chat/sessions')
+
+export const fetchChatMessages = (sessionId: string) =>
+  req<{ messages: ChatMessage[] }>(`/chat/sessions/${sessionId}`)
+    .then(r => r.messages ?? [])
+
+export const sendChatMessage = (sessionId: string, content: string, projectId?: string) =>
+  req<ChatMessage>(`/chat/sessions/${sessionId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, project_id: projectId }),
+  })
+
+export const deleteChatSession = (sessionId: string) =>
+  req<void>(`/chat/sessions/${sessionId}`, { method: 'DELETE' })

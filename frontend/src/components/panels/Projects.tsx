@@ -319,13 +319,20 @@ interface OverviewTabProps {
   onEdit: () => void
 }
 
+const AV_COLORS = ['av-blue', 'av-teal', 'av-purple', 'av-green', 'av-orange', 'av-pink', 'av-indigo', 'av-amber']
+function avColor(name: string) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return AV_COLORS[h % AV_COLORS.length]
+}
+
 function ProjectOverviewTab({ project, meetingCount, onEdit }: OverviewTabProps) {
   const internal = project.members.filter(m => m.member_type === 'internal')
   const client   = project.members.filter(m => m.member_type === 'client')
 
   const MemberRow = ({ m }: { m: ProjectMember }) => (
     <div className="proj-ov-member-row">
-      <div className="emp-av" style={{ width: 30, height: 30, fontSize: 11, flexShrink: 0 }}>
+      <div className={`emp-av ${avColor(m.name)}`} style={{ width: 30, height: 30, fontSize: 11, flexShrink: 0 }}>
         {m.name.slice(0, 2).toUpperCase()}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -358,15 +365,15 @@ function ProjectOverviewTab({ project, meetingCount, onEdit }: OverviewTabProps)
       {/* Stats */}
       <div className="proj-ov-stats">
         <div className="proj-ov-stat">
-          <div className="proj-ov-stat-val">{meetingCount}</div>
+          <div className="proj-ov-stat-val val-blue">{meetingCount}</div>
           <div className="proj-ov-stat-lbl">Meetings</div>
         </div>
         <div className="proj-ov-stat">
-          <div className="proj-ov-stat-val">{project.members.length}</div>
+          <div className="proj-ov-stat-val val-green">{project.members.length}</div>
           <div className="proj-ov-stat-lbl">Members</div>
         </div>
         <div className="proj-ov-stat">
-          <div className="proj-ov-stat-val">0</div>
+          <div className="proj-ov-stat-val val-accent">0</div>
           <div className="proj-ov-stat-lbl">Action Items</div>
         </div>
       </div>
@@ -565,7 +572,7 @@ export default function Projects({
             </div>
             <div className="proj-members" style={{ justifyContent: 'space-between' }}>
               <div style={{ display: 'flex' }}>
-                <div className="member-av">{p.name.slice(0, 2).toUpperCase()}</div>
+                <div className={`member-av ${avColor(p.name)}`}>{p.name.slice(0, 2).toUpperCase()}</div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button

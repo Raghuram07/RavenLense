@@ -20,6 +20,7 @@ logger = logging.getLogger("ravenlens.bedrock")
 BEDROCK_KB_ID          = os.getenv("BEDROCK_KB_ID", "")
 BEDROCK_DATASOURCE_ID  = os.getenv("BEDROCK_DATASOURCE_ID", "")
 BEDROCK_REGION         = os.getenv("BEDROCK_REGION", "us-west-2")
+BEDROCK_MODEL_ARN      = os.getenv("BEDROCK_MODEL_ARN", "")
 
 
 def _get_agent_runtime_client():
@@ -38,6 +39,7 @@ def retrieve_and_generate(
     question:   str,
     kb_id:      Optional[str] = None,
     session_id: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> dict:
     """
     RAG query against the Bedrock Knowledge Base.
@@ -59,15 +61,38 @@ def retrieve_and_generate(
     if not kb:
         raise RuntimeError("BEDROCK_KB_ID is not configured")
 
+    model_arn = BEDROCK_MODEL_ARN
+    if not model_arn:
+        raise RuntimeError(
+            "BEDROCK_MODEL_ARN is not configured. "
+            "Set it in .env to an active model ARN from your Bedrock console, e.g.: "
+            "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0"
+        )
+
     client = _get_agent_runtime_client()
+
+    kb_config: dict = {
+        "knowledgeBaseId": kb,
+        "modelArn": model_arn,
+    }
+
+    if project_id:
+        kb_config["retrievalConfiguration"] = {
+            "vectorSearchConfiguration": {
+                "filter": {
+                    "equals": {
+                        "key":   "project_id",
+                        "value": project_id,
+                    }
+                }
+            }
+        }
 
     params = {
         "input": {"text": question},
         "retrieveAndGenerateConfiguration": {
             "type": "KNOWLEDGE_BASE",
-            "knowledgeBaseConfiguration": {
-                "knowledgeBaseId": kb,
-            },
+            "knowledgeBaseConfiguration": kb_config,
         },
     }
 
@@ -107,7 +132,7 @@ def retrieve_and_generate(
             if session_id:
                 logger.warning("Bedrock session expired (%s), retrying without session",
                                session_id)
-                return retrieve_and_generate(question, kb_id=kb, session_id=None)
+                return retrieve_and_generate(question, kb_id=kb, session_id=None, project_id=project_id)
         logger.exception("Bedrock retrieve_and_generate failed")
         raise
 

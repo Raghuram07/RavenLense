@@ -219,7 +219,25 @@ export interface PerformanceMember {
 
 // ── Chat ──────────────────────────────────────────────────
 
-export interface ChatResponse {
-  answer:        string
-  meetings_used: string[]
+export interface ChatSession {
+  id:            string
+  project_id:    string | null
+  title:         string
+  message_count?: number
+  created_at:    string
+  updated_at:    string
+}
+
+export interface ChatCitation {
+  meeting_id:    string
+  meeting_title: string
+  excerpt?:      string
+}
+
+export interface ChatMessage {
+  id:         string
+  role:       'user' | 'assistant'
+  content:    string
+  citations:  ChatCitation[] | null
+  created_at: string
 }

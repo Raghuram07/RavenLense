@@ -221,6 +221,7 @@ async def send_message(
         rag_result = retrieve_and_generate(
             question=body.content,
             session_id=session.bedrock_session_id,
+            project_id=session.project_id,
         )
         answer = rag_result["answer"]
         citations = rag_result.get("citations")
