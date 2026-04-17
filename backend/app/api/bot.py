@@ -10,8 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import AsyncSessionLocal, get_db
 from app.models.meeting import Meeting
+from app.models.meeting_transcript import MeetingTranscript
+from app.models.meeting_ai_output import MeetingAIOutput
+from app.models.meeting_action_item import MeetingActionItem
 from app.models.project import Project
 from app.services.ai_summariser import generate_mom
+from app.api.meetings import _save_mom, _load_meeting
 
 router = APIRouter()
 
@@ -199,36 +203,36 @@ async def reprocess_meeting(meeting_id: str, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=400, detail="Transcript is empty — the meeting may not have had any speech")
 
     # Step 5: Save transcript + run AI summarisation
-    meeting.raw_transcript = clean_transcript
+    if meeting.transcript:
+        meeting.transcript.raw_transcript = clean_transcript
+    else:
+        db.add(MeetingTranscript(meeting_id=meeting.id, raw_transcript=clean_transcript))
+
     meeting.status = "processing"
     await db.commit()
 
+    # reload relationships for _save_mom
+    meeting = await _load_meeting(db, meeting_id)
+
     try:
         mom_data = await generate_mom(clean_transcript, meeting_title=meeting.title)
-
-        meeting.attendees    = mom_data.get("attendees",    [])
-        meeting.decisions    = mom_data.get("decisions",    [])
-        meeting.action_items = mom_data.get("action_items", [])
-        meeting.blockers     = mom_data.get("blockers",     [])
-        meeting.summary      = mom_data.get("summary",      "")
-        meeting.full_mom     = mom_data.get("full_mom",     "")
-        meeting.status       = "done"
-
+        await _save_mom(db, meeting, mom_data)
+        meeting.status = "done"
     except Exception as e:
         meeting.status = "failed"
         await db.commit()
         raise HTTPException(status_code=500, detail=f"AI summarisation failed: {str(e)}")
 
     await db.commit()
-    await db.refresh(meeting)
+    meeting = await _load_meeting(db, meeting_id)
 
     return {
         "status": "done",
         "meeting_id": meeting_id,
         "title": meeting.title,
-        "attendees": meeting.attendees,
-        "action_items_count": len(meeting.action_items or []),
-        "summary": meeting.summary,
+        "attendees": meeting.ai_output.attendees if meeting.ai_output else [],
+        "action_items_count": len(meeting.action_items),
+        "summary": meeting.ai_output.summary if meeting.ai_output else "",
     }
 
 
@@ -275,18 +279,29 @@ async def _process_bot_done(bot_id: str, meeting_id: str) -> None:
                     lines.append(f"{speaker}: {words}")
 
             transcript = "\n".join(lines)
-            meeting.raw_transcript = transcript
+            if meeting.transcript:
+                meeting.transcript.raw_transcript = transcript
+            else:
+                db.add(MeetingTranscript(meeting_id=meeting.id, raw_transcript=transcript))
+
             meeting.bot_left_at = datetime.now(timezone.utc)
             await db.commit()
 
-            mom = await generate_mom(transcript, meeting_title=meeting.title)
+            # reload for _save_mom
+            from sqlalchemy.orm import selectinload
+            result2 = await db.execute(
+                select(Meeting)
+                .options(
+                    selectinload(Meeting.transcript),
+                    selectinload(Meeting.ai_output),
+                    selectinload(Meeting.action_items),
+                )
+                .where(Meeting.id == meeting.id)
+            )
+            meeting = result2.scalar_one()
 
-            meeting.attendees = mom.get("attendees", [])
-            meeting.decisions = mom.get("decisions", [])
-            meeting.action_items = mom.get("action_items", [])
-            meeting.blockers = mom.get("blockers", [])
-            meeting.summary = mom.get("summary", "")
-            meeting.full_mom = mom.get("full_mom", "")
+            mom = await generate_mom(transcript, meeting_title=meeting.title)
+            await _save_mom(db, meeting, mom)
             meeting.status = "done"
             await db.commit()
 

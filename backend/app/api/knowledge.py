@@ -3,12 +3,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.database import get_db, AsyncSessionLocal
+from app.db.database import get_db
 from app.models.knowledge import KnowledgeFolder, KnowledgeFile
 from app.services.s3_uploader import upload_file_to_s3
 from app.services.bedrock_service import trigger_ingestion
@@ -22,7 +22,7 @@ def _extract_text(raw_bytes: bytes, filename: str) -> str:
     """Best-effort plain-text extraction for supported file types."""
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
 
-    if ext == "txt" or ext == "vtt":
+    if ext in ("txt", "vtt"):
         try:
             return raw_bytes.decode("utf-8")
         except UnicodeDecodeError:
@@ -40,12 +40,11 @@ def _extract_text(raw_bytes: bytes, filename: str) -> str:
         try:
             import pypdf
             reader = pypdf.PdfReader(io.BytesIO(raw_bytes))
-            pages = [page.extract_text() or "" for page in reader.pages]
-            return "\n".join(pages)
+            return "\n".join(page.extract_text() or "" for page in reader.pages)
         except Exception:
             return ""
 
-    return ""  # binary or unsupported
+    return ""
 
 
 # ── Schemas ──────────────────────────────────────────────
@@ -90,8 +89,10 @@ class FileResponse(BaseModel):
 class RejectBody(BaseModel):
     reason: Optional[str] = None
 
+
 class ApproveBody(BaseModel):
     reviewed_by: Optional[str] = None
+
 
 # ── Folder endpoints ──────────────────────────────────────
 
@@ -108,10 +109,9 @@ async def list_folders(
 
     output = []
     for f in folders:
-        files_result = await db.execute(
+        count = len((await db.execute(
             select(KnowledgeFile).where(KnowledgeFile.folder_id == f.id)
-        )
-        count = len(files_result.scalars().all())
+        )).scalars().all())
         output.append({**f.__dict__, "file_count": count})
     return output
 
@@ -174,7 +174,7 @@ async def upload_file(
     uploaded_by_name: Optional[str]  = Form(None),
     db:               AsyncSession    = Depends(get_db),
 ):
-    """Upload a file to the knowledge base. Supported: .pdf, .txt, .vtt, .docx"""
+    """Upload a file to the knowledge base. File goes to S3 immediately; review controls indexing."""
     filename = file.filename or "untitled"
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     allowed = {"pdf", "txt", "vtt", "docx", "md"}
@@ -184,30 +184,68 @@ async def upload_file(
             detail=f"Unsupported file type .{ext}. Allowed: {', '.join(sorted(allowed))}"
         )
 
-    raw_bytes = await file.read()
+    raw_bytes  = await file.read()
     size_bytes = len(raw_bytes)
-    content = _extract_text(raw_bytes, filename)
+    content    = _extract_text(raw_bytes, filename)
 
-    # Validate folder exists if provided
-    if folder_id:
+    # Resolve project_id from folder if not supplied directly
+    resolved_project_id = project_id
+    if not resolved_project_id and folder_id:
+        fr = await db.execute(select(KnowledgeFolder).where(KnowledgeFolder.id == folder_id))
+        folder = fr.scalar_one_or_none()
+        if not folder:
+            raise HTTPException(status_code=404, detail="Folder not found")
+        resolved_project_id = folder.project_id
+    elif folder_id:
         fr = await db.execute(select(KnowledgeFolder).where(KnowledgeFolder.id == folder_id))
         if not fr.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Folder not found")
 
+    # Upload to S3 immediately (status=pending — Bedrock ingestion triggered on approval)
+    s3_key = None
+    if resolved_project_id:
+        try:
+            s3_key = upload_file_to_s3(
+                file_data=raw_bytes,
+                filename=filename,
+                project_id=resolved_project_id,
+                file_id="pending",   # placeholder; overwritten below with real id
+                mime_type=file.content_type,
+            )
+        except Exception:
+            logger.exception("S3 upload failed during file upload for %s", filename)
+
     kf = KnowledgeFile(
         folder_id=folder_id,
-        project_id=project_id,
+        project_id=resolved_project_id,
         name=filename,
         mime_type=file.content_type,
         size_bytes=size_bytes,
         content=content,
-        file_data=raw_bytes,
+        s3_key=s3_key,
         status="pending",
         uploaded_by_name=uploaded_by_name,
     )
     db.add(kf)
     await db.commit()
     await db.refresh(kf)
+
+    # Re-upload with real file_id in key if S3 succeeded with placeholder
+    if resolved_project_id and s3_key:
+        try:
+            real_s3_key = upload_file_to_s3(
+                file_data=raw_bytes,
+                filename=filename,
+                project_id=resolved_project_id,
+                file_id=kf.id,
+                mime_type=file.content_type,
+            )
+            kf.s3_key = real_s3_key
+            await db.commit()
+            await db.refresh(kf)
+        except Exception:
+            logger.exception("S3 re-upload with real file_id failed for %s", kf.id)
+
     return kf
 
 
@@ -220,44 +258,6 @@ async def get_file(file_id: str, db: AsyncSession = Depends(get_db)):
     return kf
 
 
-async def _s3_upload_job(file_id: str, file_data: bytes, filename: str,
-                        project_id: str, mime_type: Optional[str]):
-    """
-    Async background job — runs in the main event loop after the response is sent.
-    Uploads the file to S3, then clears file_data in the DB.
-    """
-    try:
-        s3_key = upload_file_to_s3(
-            file_data=file_data,
-            filename=filename,
-            project_id=project_id,
-            file_id=file_id,
-            mime_type=mime_type,
-        )
-        # Persist the s3_key and clear raw bytes
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(KnowledgeFile).where(KnowledgeFile.id == file_id)
-            )
-            kf = result.scalar_one_or_none()
-            if kf:
-                kf.s3_key = s3_key
-                kf.file_data = None  # free DB space
-                await session.commit()
-                logger.info("S3 upload complete for file %s → %s", file_id, s3_key)
-
-        # Trigger Bedrock ingestion to index the new file
-        try:
-            job_id = trigger_ingestion()
-            if job_id:
-                logger.info("Bedrock ingestion triggered — job=%s", job_id)
-        except Exception:
-            logger.exception("Bedrock ingestion trigger failed (non-blocking)")
-
-    except Exception:
-        logger.exception("S3 upload failed for file %s", file_id)
-
-
 @router.post("/files/{file_id}/approve", response_model=FileResponse)
 async def approve_file(
     file_id: str,
@@ -265,51 +265,35 @@ async def approve_file(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    # Fetch file
-    result = await db.execute(
-        select(KnowledgeFile).where(KnowledgeFile.id == file_id)
-    )
+    result = await db.execute(select(KnowledgeFile).where(KnowledgeFile.id == file_id))
     kf = result.scalar_one_or_none()
-
     if not kf:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Fetch folder to get project_id
-    folder_result = await db.execute(
-        select(KnowledgeFolder).where(KnowledgeFolder.id == kf.folder_id)
-    )
-    folder = folder_result.scalar_one_or_none()
-
-    project_id = folder.project_id if folder else None
-
-    kf.status = "approved"
+    kf.status           = "approved"
     kf.reviewed_by_name = body.reviewed_by
-    kf.reviewed_at = datetime.now(timezone.utc)
+    kf.reviewed_at      = datetime.now(timezone.utc)
     kf.rejection_reason = None
-
     await db.commit()
     await db.refresh(kf)
 
-    # Schedule S3 upload as a background job
-    if kf.file_data and project_id:
-        background_tasks.add_task(
-            _s3_upload_job,
-            file_id=kf.id,
-            file_data=kf.file_data,
-            filename=kf.name,
-            project_id=project_id,
-            mime_type=kf.mime_type,
-        )
-        logger.info(
-            "Queued S3 upload for file %s (project %s)", kf.id, project_id
-        )
-    elif not project_id:
-        logger.warning(
-            "Skipping S3 upload for file %s — no project_id found via folder",
-            kf.id,
-        )
+    # Trigger Bedrock ingestion so the approved file gets indexed
+    if kf.s3_key:
+        background_tasks.add_task(_trigger_ingestion_job)
+        logger.info("Queued Bedrock ingestion for approved file %s", kf.id)
+    else:
+        logger.warning("Approved file %s has no s3_key — skipping Bedrock ingestion", kf.id)
 
     return kf
+
+
+async def _trigger_ingestion_job():
+    try:
+        job_id = trigger_ingestion()
+        if job_id:
+            logger.info("Bedrock ingestion triggered — job=%s", job_id)
+    except Exception:
+        logger.exception("Bedrock ingestion trigger failed (non-blocking)")
 
 
 @router.post("/files/{file_id}/reject", response_model=FileResponse)
@@ -319,9 +303,9 @@ async def reject_file(file_id: str, body: RejectBody, db: AsyncSession = Depends
     if not kf:
         raise HTTPException(status_code=404, detail="File not found")
 
-    kf.status = "rejected"
+    kf.status           = "rejected"
     kf.rejection_reason = body.reason
-    kf.reviewed_at = datetime.now(timezone.utc)
+    kf.reviewed_at      = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(kf)
     return kf

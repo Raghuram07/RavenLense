@@ -35,7 +35,7 @@ export default function Sidebar({ projects, selectedId, onSelect, onDelete, onCr
               <div>
                 <div className="project-name">{p.name}</div>
                 <div className="project-meta">
-                  {p.client ? `${p.client} · ` : ''}{p.meeting_count} meeting{p.meeting_count !== 1 ? 's' : ''}
+                  {p.client_name ? `${p.client_name} · ` : ''}{p.meeting_count} meeting{p.meeting_count !== 1 ? 's' : ''}
                 </div>
               </div>
               <button

@@ -1,4 +1,6 @@
-import type { Meeting } from '../types'
+import { useState } from 'react'
+import type { Meeting, ActionItem } from '../types'
+import * as api from '../api'
 
 interface Props {
   meeting: Meeting
@@ -9,8 +11,42 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 }
 
+const STATUS_CYCLE: Record<ActionItem['status'], ActionItem['status']> = {
+  open:        'in_progress',
+  in_progress: 'done',
+  done:        'open',
+}
+
+const STATUS_LABEL: Record<ActionItem['status'], string> = {
+  open:        'Open',
+  in_progress: 'In Progress',
+  done:        'Done',
+}
+
+const STATUS_STYLE: Record<ActionItem['status'], React.CSSProperties> = {
+  open:        { background: 'var(--surface2)', color: 'var(--text3)', border: '1px solid var(--border2)' },
+  in_progress: { background: 'var(--blue-bg)',  color: 'var(--blue)',  border: '1px solid var(--blue)' },
+  done:        { background: '#dcfce7',          color: '#16a34a',      border: '1px solid #86efac' },
+}
+
 export default function MeetingDetail({ meeting }: Props) {
   const { title, platform, meeting_date, status, summary, attendees, decisions, action_items, blockers, full_mom } = meeting
+
+  const [items, setItems] = useState<ActionItem[]>(action_items ?? [])
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  const cycleStatus = async (item: ActionItem) => {
+    const next = STATUS_CYCLE[item.status]
+    setUpdatingId(item.id)
+    try {
+      await api.updateActionItemStatus(meeting.id, item.id, next)
+      setItems(prev => prev.map(it => it.id === item.id ? { ...it, status: next } : it))
+    } catch {
+      /* silently ignore — keep old status */
+    } finally {
+      setUpdatingId(null)
+    }
+  }
 
   if (status === 'joining') {
     return (
@@ -106,15 +142,34 @@ export default function MeetingDetail({ meeting }: Props) {
         </div>
       )}
 
-      {action_items && action_items.length > 0 && (
+      {items.length > 0 && (
         <div className="section">
-          <div className="section-title">Action Items ({action_items.length})</div>
+          <div className="section-title">Action Items ({items.length})</div>
           <div className="list-items">
-            {action_items.map((item, i) => (
-              <div key={i} className="action-item">
-                <div className="action-task">{item.task}</div>
+            {items.map(item => (
+              <div key={item.id} className="action-item">
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                  <div className="action-task" style={{ flex: 1 }}>{item.task}</div>
+                  <button
+                    onClick={() => cycleStatus(item)}
+                    disabled={updatingId === item.id}
+                    title="Click to advance status"
+                    style={{
+                      ...STATUS_STYLE[item.status],
+                      fontSize: 11,
+                      padding: '2px 8px',
+                      borderRadius: 99,
+                      cursor: updatingId === item.id ? 'wait' : 'pointer',
+                      flexShrink: 0,
+                      fontWeight: 500,
+                      background: STATUS_STYLE[item.status].background,
+                    }}
+                  >
+                    {updatingId === item.id ? '…' : STATUS_LABEL[item.status]}
+                  </button>
+                </div>
                 <div className="action-owner">👤 {item.owner}</div>
-                {item.due && <div className="action-due">📅 {item.due}</div>}
+                {item.due_date && <div className="action-due">📅 {item.due_date}</div>}
               </div>
             ))}
           </div>

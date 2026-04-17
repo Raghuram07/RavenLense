@@ -1,22 +1,24 @@
 // ── Projects ──────────────────────────────────────────────
 
 export interface ProjectMember {
-  id:              string
-  project_id:      string
-  name:            string
-  email:           string | null
-  role_in_project: string | null
-  member_type:     'internal' | 'client'
-  organization:    string | null
-  employee_id:     string | null
-  created_at:      string
+  id:                 string
+  project_id:         string
+  display_name:       string
+  display_email:      string | null
+  role_in_project:    string | null
+  member_type:        'internal' | 'client'
+  organization:       string | null
+  employee_id:        string | null
+  client_contact_id:  string | null
+  created_at:         string
 }
 
 export interface Project {
   id:            string
   name:          string
   description:   string | null
-  client:        string | null
+  client_id:     string | null
+  client_name:   string | null
   created_at:    string
   meeting_count: number
   members:       ProjectMember[]
@@ -39,9 +41,11 @@ export interface MeetingListItem {
 }
 
 export interface ActionItem {
-  owner: string
-  task:  string
-  due:   string | null
+  id:       string
+  owner:    string
+  task:     string
+  due_date: string | null
+  status:   'open' | 'in_progress' | 'done'
 }
 
 export interface Meeting {
@@ -94,7 +98,6 @@ export interface Employee {
   department:   string | null
   organization: string | null
   role:         'admin' | 'manager' | 'employee'
-  project:      string | null
   status:       'active' | 'inactive'
   created_at:   string
 }
@@ -106,7 +109,6 @@ export interface EmployeeCreate {
   department?:  string
   organization?: string
   role?:        string
-  project?:     string
   status?:      string
 }
 
@@ -117,7 +119,6 @@ export interface EmployeeUpdate {
   department?:   string
   organization?: string
   role?:         string
-  project?:      string
   status?:       string
 }
 

@@ -26,8 +26,8 @@ export const fetchProjects = () => req<Project[]>('/projects/')
 export const createProject = (data: {
   name: string
   description?: string
-  client?: string
-  members?: { name: string; email?: string; role_in_project?: string; member_type?: string; organization?: string; employee_id?: string }[]
+  client_id?: string
+  members?: { role_in_project?: string; member_type?: string; employee_id?: string; client_contact_id?: string }[]
 }) =>
   req<Project>('/projects/', {
     method: 'POST',
@@ -35,7 +35,7 @@ export const createProject = (data: {
     body: JSON.stringify(data),
   })
 
-export const updateProject = (id: string, data: { name?: string; description?: string; client?: string }) =>
+export const updateProject = (id: string, data: { name?: string; description?: string; client_id?: string }) =>
   req<Project>(`/projects/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -50,7 +50,7 @@ export const fetchProjectMembers = (projectId: string) =>
 
 export const addProjectMember = (
   projectId: string,
-  data: { name: string; email?: string; role_in_project?: string; member_type?: string; organization?: string; employee_id?: string }
+  data: { role_in_project?: string; member_type: string; employee_id?: string; client_contact_id?: string }
 ) =>
   req<ProjectMember>(`/projects/${projectId}/members`, {
     method: 'POST',
@@ -69,6 +69,8 @@ export const fetchMeeting = (id: string) => req<Meeting>(`/meetings/${id}`)
 export const uploadMeeting = (form: FormData) =>
   req<Meeting>('/meetings/upload', { method: 'POST', body: form })
 export const deleteMeeting = (id: string) => req<void>(`/meetings/${id}`, { method: 'DELETE' })
+export const updateActionItemStatus = (meetingId: string, itemId: string, status: 'open' | 'in_progress' | 'done') =>
+  req<void>(`/meetings/${meetingId}/action-items/${itemId}?status=${status}`, { method: 'PATCH' })
 
 // ── Bot ───────────────────────────────────────────────────
 

@@ -21,7 +21,11 @@ class Base(DeclarativeBase):
 
 async def init_db():
     # Import all models so SQLAlchemy registers their tables before create_all
-    from app.models import project, meeting, employee, knowledge, client, project_member, chat  # noqa
+    from app.models import (  # noqa
+        project, meeting, meeting_transcript, meeting_ai_output,
+        meeting_action_item, employee, knowledge, client,
+        project_member, chat, activity_log,
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("RavenLens database initialised")

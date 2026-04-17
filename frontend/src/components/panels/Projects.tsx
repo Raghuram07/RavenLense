@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { Project, MeetingListItem, Meeting, Employee, Client, ProjectMember } from '../../types'
 import type { Role, ROLE_META, ProjectTab } from '../../App'
 import MeetingList from '../MeetingList'
@@ -16,29 +16,29 @@ type RoleMeta = typeof ROLE_META[Role]
 const PROJECT_ROLES = ['BA', 'Tester', 'Developer', 'QA', 'PM', 'Scrum Master', 'Designer', 'DevOps', 'Stakeholder', 'Other']
 
 interface EditMemberRow {
-  id:              string   // existing member id, '' = new
-  name:            string
-  email:           string
-  role_in_project: string
-  member_type:     'internal' | 'client'
-  organization:    string
-  employee_id:     string
+  id:                string   // existing member id, '' = new
+  display_name:      string   // resolved display for existing members
+  display_email:     string
+  role_in_project:   string
+  member_type:       'internal' | 'client'
+  employee_id:       string   // for new internal rows
+  client_contact_id: string   // for new client rows
 }
 
 function fromProjectMember(m: ProjectMember): EditMemberRow {
   return {
     id: m.id,
-    name: m.name,
-    email: m.email ?? '',
+    display_name: m.display_name,
+    display_email: m.display_email ?? '',
     role_in_project: m.role_in_project ?? '',
     member_type: m.member_type,
-    organization: m.organization ?? '',
     employee_id: m.employee_id ?? '',
+    client_contact_id: m.client_contact_id ?? '',
   }
 }
 
 function emptyEditMember(type: 'internal' | 'client'): EditMemberRow {
-  return { id: '', name: '', email: '', role_in_project: '', member_type: type, organization: '', employee_id: '' }
+  return { id: '', display_name: '', display_email: '', role_in_project: '', member_type: type, employee_id: '', client_contact_id: '' }
 }
 
 interface EditModalProps {
@@ -52,7 +52,7 @@ function EditProjectModal({ project, onSaved, onClose }: EditModalProps) {
 
   const [name, setName]               = useState(project.name)
   const [description, setDescription] = useState(project.description ?? '')
-  const [client, setClient]           = useState(project.client ?? '')
+  const [clientId, setClientId]       = useState(project.client_id ?? '')
 
   const [teamMembers, setTeamMembers]     = useState<EditMemberRow[]>(
     project.members.filter(m => m.member_type === 'internal').map(fromProjectMember)
@@ -72,21 +72,17 @@ function EditProjectModal({ project, onSaved, onClose }: EditModalProps) {
     api.fetchClients().then(setClients).catch(() => {})
   }, [])
 
+  // Derive contacts from the already-loaded clients list
+  const contacts = useMemo(
+    () => clients.find(c => c.id === clientId)?.contacts ?? [],
+    [clients, clientId]
+  )
+
   const updateTeam = (i: number, field: keyof EditMemberRow, value: string) =>
     setTeamMembers(rows => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
 
   const updateClientRow = (i: number, field: keyof EditMemberRow, value: string) =>
     setClientMembers(rows => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
-
-  const pickEmployee = (i: number, empId: string) => {
-    const emp = employees.find(e => e.id === empId)
-    if (!emp) { updateTeam(i, 'employee_id', ''); return }
-    setTeamMembers(rows => rows.map((r, idx) =>
-      idx === i
-        ? { ...r, employee_id: emp.id, name: `${emp.first_name} ${emp.last_name}`, email: emp.email }
-        : r
-    ))
-  }
 
   const removeMember = (rows: EditMemberRow[], setRows: React.Dispatch<React.SetStateAction<EditMemberRow[]>>, i: number) => {
     const row = rows[i]
@@ -102,24 +98,29 @@ function EditProjectModal({ project, onSaved, onClose }: EditModalProps) {
       const updatedBase = await api.updateProject(project.id, {
         name: name.trim(),
         description: description.trim() || undefined,
-        client: client.trim() || undefined,
+        client_id: clientId || undefined,
       })
 
       // Remove deleted members
       await Promise.all(removedIds.map(id => api.removeProjectMember(project.id, id)))
 
-      // Add new members
-      const allNew = [...teamMembers, ...clientMembers].filter(m => !m.id && m.name.trim())
-      const added = await Promise.all(allNew.map(m =>
-        api.addProjectMember(project.id, {
-          name: m.name,
-          email: m.email || undefined,
+      // Add new internal members (employee_id required)
+      const newInternal = teamMembers.filter(m => !m.id && m.employee_id)
+      // Add new client members (client_contact_id required)
+      const newClient = clientMembers.filter(m => !m.id && m.client_contact_id)
+
+      const added = await Promise.all([
+        ...newInternal.map(m => api.addProjectMember(project.id, {
+          member_type: 'internal',
+          employee_id: m.employee_id,
           role_in_project: m.role_in_project || undefined,
-          member_type: m.member_type,
-          organization: m.organization || undefined,
-          employee_id: m.employee_id || undefined,
-        })
-      ))
+        })),
+        ...newClient.map(m => api.addProjectMember(project.id, {
+          member_type: 'client',
+          client_contact_id: m.client_contact_id,
+          role_in_project: m.role_in_project || undefined,
+        })),
+      ])
 
       // Build updated members list
       const existing = [...teamMembers, ...clientMembers]
@@ -162,10 +163,10 @@ function EditProjectModal({ project, onSaved, onClose }: EditModalProps) {
             </div>
             <div className="form-group">
               <label className="form-label">Client / Organisation</label>
-              <select className="form-input" value={client} onChange={e => setClient(e.target.value)}>
+              <select className="form-input" value={clientId} onChange={e => setClientId(e.target.value)}>
                 <option value="">— Select client —</option>
                 {clients.map(c => (
-                  <option key={c.id} value={c.name}>{c.name}</option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -196,27 +197,30 @@ function EditProjectModal({ project, onSaved, onClose }: EditModalProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
               {teamMembers.map((m, i) => (
                 <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Link to employee</label>
-                    <select className="form-input" style={{ fontSize: 12 }}
-                      value={m.employee_id}
-                      onChange={e => pickEmployee(i, e.target.value)}>
-                      <option value="">— Type manually —</option>
-                      {employees.map(e => (
-                        <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Full name *</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.name}
-                      onChange={e => updateTeam(i, 'name', e.target.value)} placeholder="Jane Smith" />
-                  </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Email</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.email}
-                      onChange={e => updateTeam(i, 'email', e.target.value)} placeholder="jane@co.com" />
-                  </div>
+                  {m.id ? (
+                    /* existing member — show resolved name, allow role change */
+                    <>
+                      <div style={{ flex: 3, minWidth: 0 }}>
+                        <label className="form-label" style={{ fontSize: 11 }}>Employee</label>
+                        <div style={{ fontSize: 12, padding: '7px 10px', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r-sm)', color: 'var(--text)' }}>
+                          {m.display_name}{m.display_email ? ` (${m.display_email})` : ''}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    /* new row — employee dropdown */
+                    <div style={{ flex: 3, minWidth: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>Employee *</label>
+                      <select className="form-input" style={{ fontSize: 12 }}
+                        value={m.employee_id}
+                        onChange={e => updateTeam(i, 'employee_id', e.target.value)}>
+                        <option value="">— Select employee —</option>
+                        {employees.map(e => (
+                          <option key={e.id} value={e.id}>{e.first_name} {e.last_name} ({e.email})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div style={{ flex: 2, minWidth: 0 }}>
                     <label className="form-label" style={{ fontSize: 11 }}>Role in project</label>
                     <select className="form-input" style={{ fontSize: 12 }} value={m.role_in_project}
@@ -255,40 +259,54 @@ function EditProjectModal({ project, onSaved, onClose }: EditModalProps) {
               Manage client-side participants for this project.
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
-              {clientMembers.map((m, i) => (
-                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Full name *</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.name}
-                      onChange={e => updateClientRow(i, 'name', e.target.value)} placeholder="John Doe" />
+            {!clientId && (
+              <div style={{ fontSize: 12.5, color: 'var(--text3)', padding: '10px 0' }}>
+                No client assigned. Go back to step 1 to assign a client.
+              </div>
+            )}
+
+            {clientId && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
+                {clientMembers.map((m, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
+                    {m.id ? (
+                      /* existing member */
+                      <div style={{ flex: 3, minWidth: 0 }}>
+                        <label className="form-label" style={{ fontSize: 11 }}>Contact</label>
+                        <div style={{ fontSize: 12, padding: '7px 10px', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r-sm)', color: 'var(--text)' }}>
+                          {m.display_name}{m.display_email ? ` (${m.display_email})` : ''}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ flex: 3, minWidth: 0 }}>
+                        <label className="form-label" style={{ fontSize: 11 }}>Client contact *</label>
+                        <select className="form-input" style={{ fontSize: 12 }}
+                          value={m.client_contact_id}
+                          onChange={e => updateClientRow(i, 'client_contact_id', e.target.value)}>
+                          <option value="">— Select contact —</option>
+                          {contacts.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div style={{ flex: 2, minWidth: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>Role</label>
+                      <select className="form-input" style={{ fontSize: 12 }} value={m.role_in_project}
+                        onChange={e => updateClientRow(i, 'role_in_project', e.target.value)}>
+                        <option value="">— Select —</option>
+                        {PROJECT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      style={{ marginTop: 20, padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14 }}
+                      onClick={() => removeMember(clientMembers, setClientMembers, i)}
+                      title="Remove">✕</button>
                   </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Email</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.email}
-                      onChange={e => updateClientRow(i, 'email', e.target.value)} placeholder="john@client.com" />
-                  </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Organisation</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.organization}
-                      onChange={e => updateClientRow(i, 'organization', e.target.value)} placeholder="Acme Corp" />
-                  </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Role</label>
-                    <select className="form-input" style={{ fontSize: 12 }} value={m.role_in_project}
-                      onChange={e => updateClientRow(i, 'role_in_project', e.target.value)}>
-                      <option value="">— Select —</option>
-                      {PROJECT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    style={{ marginTop: 20, padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14 }}
-                    onClick={() => removeMember(clientMembers, setClientMembers, i)}
-                    title="Remove">✕</button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             <button type="button" className="btn sm" onClick={() => setClientMembers(rows => [...rows, emptyEditMember('client')])}>
               + Add client contact
@@ -332,12 +350,12 @@ function ProjectOverviewTab({ project, meetingCount, onEdit }: OverviewTabProps)
 
   const MemberRow = ({ m }: { m: ProjectMember }) => (
     <div className="proj-ov-member-row">
-      <div className={`emp-av ${avColor(m.name)}`} style={{ width: 30, height: 30, fontSize: 11, flexShrink: 0 }}>
-        {m.name.slice(0, 2).toUpperCase()}
+      <div className={`emp-av ${avColor(m.display_name)}`} style={{ width: 30, height: 30, fontSize: 11, flexShrink: 0 }}>
+        {m.display_name.slice(0, 2).toUpperCase()}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</div>
-        {m.email && <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{m.email}</div>}
+        <div style={{ fontSize: 13, fontWeight: 500 }}>{m.display_name}</div>
+        {m.display_email && <div style={{ fontSize: 11.5, color: 'var(--text3)' }}>{m.display_email}</div>}
       </div>
       {m.role_in_project && (
         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'var(--blue-bg)', color: 'var(--blue)', flexShrink: 0 }}>
@@ -464,9 +482,9 @@ export default function Projects({
           </button>
           <span style={{ color: 'var(--text3)', fontSize: 12 }}>/</span>
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{viewingProject.name}</span>
-          {viewingProject.client && (
+          {viewingProject.client_name && (
             <span style={{ fontSize: 11.5, padding: '1px 7px', borderRadius: 20, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text3)' }}>
-              {viewingProject.client}
+              {viewingProject.client_name}
             </span>
           )}
           <span className="proj-status ps-active" style={{ marginLeft: 'auto' }}>Active</span>
@@ -568,7 +586,7 @@ export default function Projects({
             <div className="proj-desc">{p.description ?? 'No description.'}</div>
             <div className="proj-meta">
               <span className="proj-stat"><span>{p.meeting_count}</span> meetings</span>
-              {p.client && <span className="proj-stat"><span>{p.client}</span></span>}
+              {p.client_name && <span className="proj-stat"><span>{p.client_name}</span></span>}
             </div>
             <div className="proj-members" style={{ justifyContent: 'space-between' }}>
               <div style={{ display: 'flex' }}>

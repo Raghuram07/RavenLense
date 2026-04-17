@@ -42,7 +42,6 @@ function InviteModal({ onCreated, onClose }: InviteModalProps) {
     department:   '',
     organization: '',
     role:         'employee',
-    project:      '',
     status:       'active',
   })
   const [error, setError]   = useState('')
@@ -65,7 +64,6 @@ function InviteModal({ onCreated, onClose }: InviteModalProps) {
         ...form,
         department:   form.department   || undefined,
         organization: form.organization || undefined,
-        project:      form.project      || undefined,
       })
       onCreated(emp)
     } catch (err: unknown) {
@@ -104,19 +102,13 @@ function InviteModal({ onCreated, onClose }: InviteModalProps) {
               <input className="form-input" value={form.department} onChange={set('department')} placeholder="Engineering" />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Role</label>
-              <select className="form-input" value={form.role} onChange={set('role')}>
-                <option value="employee">Employee</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Project</label>
-              <input className="form-input" value={form.project} onChange={set('project')} placeholder="Project name (optional)" />
-            </div>
+          <div className="form-group">
+            <label className="form-label">Role</label>
+            <select className="form-input" value={form.role} onChange={set('role')}>
+              <option value="employee">Employee</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Admin</option>
+            </select>
           </div>
           {error && <div className="error-msg">{error}</div>}
           <div className="modal-actions">

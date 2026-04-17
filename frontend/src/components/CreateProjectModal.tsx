@@ -1,21 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { Project, Employee, Client } from '../types'
 import * as api from '../api'
 
-interface MemberRow {
-  name:            string
-  email:           string
-  role_in_project: string
-  member_type:     'internal' | 'client'
-  organization:    string
+interface InternalRow {
   employee_id:     string
+  role_in_project: string
+}
+
+interface ClientContactRow {
+  client_contact_id: string
+  role_in_project:   string
 }
 
 const PROJECT_ROLES = ['BA', 'Tester', 'Developer', 'QA', 'PM', 'Scrum Master', 'Designer', 'DevOps', 'Stakeholder', 'Other']
 
-function emptyMember(type: 'internal' | 'client'): MemberRow {
-  return { name: '', email: '', role_in_project: '', member_type: type, organization: '', employee_id: '' }
-}
+function emptyInternal(): InternalRow { return { employee_id: '', role_in_project: '' } }
+function emptyClientContact(): ClientContactRow { return { client_contact_id: '', role_in_project: '' } }
 
 interface Props {
   onCreated: (p: Project) => void
@@ -28,14 +28,14 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
   // Step 1 – basic info
   const [name, setName]               = useState('')
   const [description, setDescription] = useState('')
-  const [client, setClient]           = useState('')
+  const [clientId, setClientId]       = useState('')
 
   // Step 2 – internal team members
-  const [teamMembers, setTeamMembers] = useState<MemberRow[]>([emptyMember('internal')])
-  const [employees, setEmployees]     = useState<Employee[]>([])
+  const [teamRows, setTeamRows] = useState<InternalRow[]>([emptyInternal()])
+  const [employees, setEmployees] = useState<Employee[]>([])
 
   // Step 3 – client contacts
-  const [clientMembers, setClientMembers] = useState<MemberRow[]>([emptyMember('client')])
+  const [contactRows, setContactRows] = useState<ClientContactRow[]>([emptyClientContact()])
 
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(false)
@@ -46,54 +46,42 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
     api.fetchClients().then(setClients).catch(() => {})
   }, [])
 
-  // ── member row helpers ──
+  // Derive contacts from the already-loaded clients list
+  const contacts = useMemo(
+    () => clients.find(c => c.id === clientId)?.contacts ?? [],
+    [clients, clientId]
+  )
 
-  const updateTeam = (i: number, field: keyof MemberRow, value: string) =>
-    setTeamMembers(rows => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
+  const updateTeam = (i: number, field: keyof InternalRow, value: string) =>
+    setTeamRows(rows => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
 
-  const updateClient = (i: number, field: keyof MemberRow, value: string) =>
-    setClientMembers(rows => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
-
-  const pickEmployee = (i: number, empId: string) => {
-    const emp = employees.find(e => e.id === empId)
-    if (!emp) { updateTeam(i, 'employee_id', ''); return }
-    setTeamMembers(rows => rows.map((r, idx) =>
-      idx === i
-        ? { ...r, employee_id: emp.id, name: `${emp.first_name} ${emp.last_name}`, email: emp.email }
-        : r
-    ))
-  }
-
-  // ── submit ──
+  const updateContact = (i: number, field: keyof ClientContactRow, value: string) =>
+    setContactRows(rows => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
 
   const handleSubmit = async () => {
     if (!name.trim()) { setStep(1); setError('Project name is required.'); return }
     setLoading(true)
     setError('')
     try {
-      const validTeam = teamMembers.filter(m => m.name.trim())
-      const validClient = clientMembers.filter(m => m.name.trim())
-      const members = [
-        ...validTeam.map(m => ({
-          name: m.name,
-          email: m.email || undefined,
-          role_in_project: m.role_in_project || undefined,
+      const internalMembers = teamRows
+        .filter(r => r.employee_id)
+        .map(r => ({
           member_type: 'internal' as const,
-          employee_id: m.employee_id || undefined,
-        })),
-        ...validClient.map(m => ({
-          name: m.name,
-          email: m.email || undefined,
-          role_in_project: m.role_in_project || undefined,
+          employee_id: r.employee_id,
+          role_in_project: r.role_in_project || undefined,
+        }))
+      const clientMembers = contactRows
+        .filter(r => r.client_contact_id)
+        .map(r => ({
           member_type: 'client' as const,
-          organization: m.organization || undefined,
-        })),
-      ]
+          client_contact_id: r.client_contact_id,
+          role_in_project: r.role_in_project || undefined,
+        }))
       const p = await api.createProject({
         name: name.trim(),
         description: description.trim() || undefined,
-        client: client.trim() || undefined,
-        members,
+        client_id: clientId || undefined,
+        members: [...internalMembers, ...clientMembers],
       })
       onCreated(p)
     } catch (err) {
@@ -136,10 +124,10 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
             </div>
             <div className="form-group">
               <label className="form-label">Client / Organisation</label>
-              <select className="form-input" value={client} onChange={e => setClient(e.target.value)}>
+              <select className="form-input" value={clientId} onChange={e => setClientId(e.target.value)}>
                 <option value="">— Select client —</option>
                 {clients.map(c => (
-                  <option key={c.id} value={c.name}>{c.name}</option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -153,7 +141,7 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
           </div>
         )}
 
-        {/* ── Step 2: Team members ── */}
+        {/* ── Step 2: Internal team members ── */}
         {step === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -164,28 +152,18 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
-              {teamMembers.map((m, i) => (
+              {teamRows.map((m, i) => (
                 <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Link to employee</label>
+                  <div style={{ flex: 3, minWidth: 0 }}>
+                    <label className="form-label" style={{ fontSize: 11 }}>Employee *</label>
                     <select className="form-input" style={{ fontSize: 12 }}
                       value={m.employee_id}
-                      onChange={e => pickEmployee(i, e.target.value)}>
-                      <option value="">— Type manually —</option>
+                      onChange={e => updateTeam(i, 'employee_id', e.target.value)}>
+                      <option value="">— Select employee —</option>
                       {employees.map(e => (
-                        <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>
+                        <option key={e.id} value={e.id}>{e.first_name} {e.last_name} ({e.email})</option>
                       ))}
                     </select>
-                  </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Full name *</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.name}
-                      onChange={e => updateTeam(i, 'name', e.target.value)} placeholder="Jane Smith" />
-                  </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Email</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.email}
-                      onChange={e => updateTeam(i, 'email', e.target.value)} placeholder="jane@co.com" />
                   </div>
                   <div style={{ flex: 2, minWidth: 0 }}>
                     <label className="form-label" style={{ fontSize: 11 }}>Role in project</label>
@@ -198,13 +176,13 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
                   <button
                     type="button"
                     style={{ marginTop: 20, padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14 }}
-                    onClick={() => setTeamMembers(rows => rows.filter((_, idx) => idx !== i))}
+                    onClick={() => setTeamRows(rows => rows.filter((_, idx) => idx !== i))}
                     title="Remove">✕</button>
                 </div>
               ))}
             </div>
 
-            <button type="button" className="btn sm" onClick={() => setTeamMembers(rows => [...rows, emptyMember('internal')])}>
+            <button type="button" className="btn sm" onClick={() => setTeamRows(rows => [...rows, emptyInternal()])}>
               + Add member
             </button>
 
@@ -225,44 +203,50 @@ export default function CreateProjectModal({ onCreated, onClose }: Props) {
               Add client-side participants — stakeholders or vendor contacts who attend meetings.
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
-              {clientMembers.map((m, i) => (
-                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Full name *</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.name}
-                      onChange={e => updateClient(i, 'name', e.target.value)} placeholder="John Doe" />
-                  </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Email</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.email}
-                      onChange={e => updateClient(i, 'email', e.target.value)} placeholder="john@client.com" />
-                  </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Organisation</label>
-                    <input className="form-input" style={{ fontSize: 12 }} value={m.organization}
-                      onChange={e => updateClient(i, 'organization', e.target.value)} placeholder="Acme Corp" />
-                  </div>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <label className="form-label" style={{ fontSize: 11 }}>Role</label>
-                    <select className="form-input" style={{ fontSize: 12 }} value={m.role_in_project}
-                      onChange={e => updateClient(i, 'role_in_project', e.target.value)}>
-                      <option value="">— Select —</option>
-                      {PROJECT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    style={{ marginTop: 20, padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14 }}
-                    onClick={() => setClientMembers(rows => rows.filter((_, idx) => idx !== i))}
-                    title="Remove">✕</button>
-                </div>
-              ))}
-            </div>
+            {!clientId && (
+              <div style={{ fontSize: 12.5, color: 'var(--text3)', padding: '10px 0' }}>
+                No client selected. Go back to step 1 to assign a client, or skip this step.
+              </div>
+            )}
 
-            <button type="button" className="btn sm" onClick={() => setClientMembers(rows => [...rows, emptyMember('client')])}>
-              + Add client contact
-            </button>
+            {clientId && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
+                {contactRows.map((m, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
+                    <div style={{ flex: 3, minWidth: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>Client contact *</label>
+                      <select className="form-input" style={{ fontSize: 12 }}
+                        value={m.client_contact_id}
+                        onChange={e => updateContact(i, 'client_contact_id', e.target.value)}>
+                        <option value="">— Select contact —</option>
+                        {contacts.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ flex: 2, minWidth: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>Role</label>
+                      <select className="form-input" style={{ fontSize: 12 }} value={m.role_in_project}
+                        onChange={e => updateContact(i, 'role_in_project', e.target.value)}>
+                        <option value="">— Select —</option>
+                        {PROJECT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      style={{ marginTop: 20, padding: '4px 6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14 }}
+                      onClick={() => setContactRows(rows => rows.filter((_, idx) => idx !== i))}
+                      title="Remove">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {clientId && (
+              <button type="button" className="btn sm" onClick={() => setContactRows(rows => [...rows, emptyClientContact()])}>
+                + Add client contact
+              </button>
+            )}
 
             {error && <div className="error-msg">{error}</div>}
             <div className="modal-actions">

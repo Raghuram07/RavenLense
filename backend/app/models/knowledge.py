@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Integer, LargeBinary, Index
+from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Integer, Index
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 from datetime import datetime, timezone
@@ -29,8 +29,7 @@ class KnowledgeFile(Base):
     mime_type        = Column(String(100), nullable=True)
     size_bytes       = Column(Integer, nullable=True)
     content          = Column(Text, nullable=True)        # extracted plain-text
-    file_data        = Column(LargeBinary, nullable=True)  # raw bytes — cleared after S3 upload
-    s3_key           = Column(String(500), nullable=True)   # S3 object key after upload
+    s3_key           = Column(String(500), nullable=True) # S3 object key
     status           = Column(String(30), nullable=False, default="pending")  # pending / approved / rejected
     uploaded_by_name = Column(String(200), nullable=True)
     rejection_reason = Column(Text, nullable=True)
@@ -39,3 +38,7 @@ class KnowledgeFile(Base):
     created_at       = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     folder = relationship("KnowledgeFolder", back_populates="files")
+
+    __table_args__ = (
+        Index("idx_knowledge_files_project", "project_id"),
+    )

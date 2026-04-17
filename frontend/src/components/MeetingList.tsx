@@ -65,7 +65,7 @@ export default function MeetingList({ project, meetings, selectedId, onSelect, o
       <div className="panel-header">
         <div>
           <div className="panel-title">{project.name}</div>
-          {project.client && <div className="panel-subtitle">{project.client}</div>}
+          {project.client_name && <div className="panel-subtitle">{project.client_name}</div>}
         </div>
         <div className="panel-header-actions">
           <button className="btn btn-ghost btn-sm" onClick={() => setShowJoin(true)}>

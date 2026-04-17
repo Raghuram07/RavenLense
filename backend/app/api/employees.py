@@ -20,7 +20,6 @@ class EmployeeCreate(BaseModel):
     department:   Optional[str] = None
     organization: Optional[str] = None
     role:         Optional[str] = "employee"
-    project:      Optional[str] = None
     status:       Optional[str] = "active"
 
 
@@ -31,7 +30,6 @@ class EmployeeUpdate(BaseModel):
     department:   Optional[str] = None
     organization: Optional[str] = None
     role:         Optional[str] = None
-    project:      Optional[str] = None
     status:       Optional[str] = None
 
 
@@ -43,7 +41,6 @@ class EmployeeResponse(BaseModel):
     department:   Optional[str]
     organization: Optional[str]
     role:         str
-    project:      Optional[str]
     status:       str
     created_at:   datetime
 
@@ -55,7 +52,6 @@ class EmployeeResponse(BaseModel):
 
 @router.get("/", response_model=List[EmployeeResponse])
 async def list_employees(db: AsyncSession = Depends(get_db)):
-    """List all employees ordered by most recently added."""
     result = await db.execute(select(Employee).order_by(Employee.created_at.desc()))
     return result.scalars().all()
 
@@ -71,7 +67,6 @@ async def get_employee(employee_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/", response_model=EmployeeResponse, status_code=201)
 async def create_employee(body: EmployeeCreate, db: AsyncSession = Depends(get_db)):
-    """Create a new employee. Email must be unique."""
     existing = await db.execute(select(Employee).where(Employee.email == body.email))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="An employee with this email already exists")
@@ -91,7 +86,6 @@ async def update_employee(employee_id: str, body: EmployeeUpdate, db: AsyncSessi
         raise HTTPException(status_code=404, detail="Employee not found")
 
     updates = body.model_dump(exclude_none=True)
-    # Ensure email uniqueness if being changed
     if "email" in updates and updates["email"] != emp.email:
         clash = await db.execute(select(Employee).where(Employee.email == updates["email"]))
         if clash.scalar_one_or_none():
@@ -107,7 +101,6 @@ async def update_employee(employee_id: str, body: EmployeeUpdate, db: AsyncSessi
 
 @router.patch("/{employee_id}/status", response_model=EmployeeResponse)
 async def toggle_employee_status(employee_id: str, db: AsyncSession = Depends(get_db)):
-    """Toggle employee active/inactive status."""
     result = await db.execute(select(Employee).where(Employee.id == employee_id))
     emp = result.scalar_one_or_none()
     if not emp:
